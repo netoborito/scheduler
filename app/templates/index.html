@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Industrial Maintenance Scheduler</title>
+    <link
+      href="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.15/main.min.css"
+      rel="stylesheet"
+    />
+    <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.15/main.min.js"></script>
+    <style>
+      body {
+        font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
+          sans-serif;
+        margin: 0;
+        padding: 0;
+        background: #0f172a;
+        color: #e5e7eb;
+      }
+
+      .page {
+        max-width: 1200px;
+        margin: 0 auto;
+        padding: 24px;
+      }
+
+      h1 {
+        margin-bottom: 8px;
+      }
+
+      .card {
+        background: #020617;
+        border-radius: 12px;
+        padding: 16px 20px;
+        box-shadow: 0 20px 40px rgba(0, 0, 0, 0.6);
+        margin-bottom: 20px;
+        border: 1px solid #1e293b;
+      }
+
+      .form-row {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        flex-wrap: wrap;
+      }
+
+      label {
+        font-size: 0.9rem;
+        color: #cbd5f5;
+      }
+
+      input[type="file"],
+      input[type="number"] {
+        background: #020617;
+        border-radius: 999px;
+        border: 1px solid #1f2937;
+        padding: 6px 12px;
+        color: #e5e7eb;
+        font-size: 0.9rem;
+      }
+
+      button {
+        border-radius: 999px;
+        border: none;
+        padding: 8px 16px;
+        font-size: 0.9rem;
+        cursor: pointer;
+        background: linear-gradient(135deg, #22c55e, #16a34a);
+        color: white;
+        font-weight: 600;
+      }
+
+      button.secondary {
+        background: transparent;
+        border: 1px solid #4b5563;
+      }
+
+      #calendar {
+        margin-top: 10px;
+        background: #020617;
+        border-radius: 12px;
+        padding: 10px;
+      }
+
+      .status {
+        font-size: 0.85rem;
+        color: #9ca3af;
+        margin-top: 8px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="page">
+      <div class="card">
+        <h1>Industrial Maintenance Scheduler</h1>
+        <p style="font-size: 0.95rem; color: #9ca3af; margin-top: 0">
+          Upload your work order backlog (.xlsx), choose a planning horizon, and
+          generate an optimized schedule.
+        </p>
+        <form id="optimize-form">
+          <div class="form-row">
+            <div>
+              <label for="backlog">Backlog (.xlsx)</label><br />
+              <input id="backlog" name="backlog_file" type="file" accept=".xlsx" required />
+            </div>
+            <div style="margin-top: 16px">
+              <button type="submit">Optimize &amp; Visualize</button>
+              <button
+                type="button"
+                class="secondary"
+                id="download-xlsx-btn"
+              >
+                Download Schedule (.xlsx)
+              </button>
+            </div>
+          </div>
+          <p style="font-size: 0.85rem; color: #9ca3af; margin-top: 8px; margin-bottom: 0">
+            Schedule horizon: 7 days starting from next Monday at 7:00 AM
+          </p>
+        </form>
+        <div class="status" id="status"></div>
+      </div>
+
+      <div class="card">
+        <h2 style="margin-top: 0">Schedule Calendar</h2>
+        <div id="calendar"></div>
+      </div>
+    </div>
+
+    <script>
+      let calendar;
+
+      function initCalendar() {
+        const calendarEl = document.getElementById("calendar");
+        calendar = new FullCalendar.Calendar(calendarEl, {
+          initialView: "timeGridWeek",
+          height: 650,
+          slotMinTime: "07:00:00",
+          slotMaxTime: "24:00:00",
+          headerToolbar: {
+            left: "prev,next today",
+            center: "title",
+            right: "dayGridMonth,timeGridWeek,timeGridDay",
+          },
+          themeSystem: "standard",
+        });
+        calendar.render();
+      }
+
+      function setStatus(message) {
+        document.getElementById("status").textContent = message || "";
+      }
+
+      async function postOptimize(formData) {
+        const response = await fetch("/api/optimize", {
+          method: "POST",
+          body: formData,
+        });
+        if (!response.ok) {
+          throw new Error("Optimization failed");
+        }
+        return response.json();
+      }
+
+      document
+        .getElementById("optimize-form")
+        .addEventListener("submit", async (event) => {
+          event.preventDefault();
+          const fileInput = document.getElementById("backlog");
+          if (!fileInput.files.length) {
+            alert("Please choose a backlog .xlsx file.");
+            return;
+          }
+          const fd = new FormData();
+          fd.append("backlog_file", fileInput.files[0]);
+
+          try {
+            setStatus("Optimizing schedule...");
+            const data = await postOptimize(fd);
+
+            // Map assignments to events using the schedule start_date
+            // Each day starts at 7:00 AM
+            const startDate = new Date(data.schedule.start_date + "T07:00:00");
+            const events = (data.schedule.assignments || []).map((a) => {
+              const eventDate = new Date(startDate);
+              eventDate.setDate(startDate.getDate() + a.day_offset);
+              const start = new Date(
+                eventDate.getFullYear(),
+                eventDate.getMonth(),
+                eventDate.getDate(),
+                7,
+                0,
+                0
+              );
+              // End time: start + 8 hours (assuming 8-hour work day)
+              const end = new Date(start);
+              end.setHours(start.getHours() + 8);
+              return {
+                title: `${a.work_order_id} (${a.resource_id})`,
+                start,
+                end,
+              };
+            });
+
+            calendar.removeAllEvents();
+            calendar.addEventSource(events);
+            setStatus(
+              `Scheduled ${events.length} assignments over 7 days starting ${data.schedule.start_date}.`
+            );
+          } catch (err) {
+            console.error(err);
+            setStatus("Error during optimization. See console for details.");
+          }
+        });
+
+      document
+        .getElementById("download-xlsx-btn")
+        .addEventListener("click", async () => {
+          const fileInput = document.getElementById("backlog");
+          if (!fileInput.files.length) {
+            alert("Please choose a backlog .xlsx file first.");
+            return;
+          }
+          const fd = new FormData();
+          fd.append("backlog_file", fileInput.files[0]);
+          try {
+            setStatus("Generating schedule .xlsx...");
+            const response = await fetch("/api/optimize/xlsx", {
+              method: "POST",
+              body: fd,
+            });
+            if (!response.ok) {
+              throw new Error("Failed to generate .xlsx");
+            }
+            const blob = await response.blob();
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = "schedule.xlsx";
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            window.URL.revokeObjectURL(url);
+            setStatus("Downloaded schedule.xlsx.");
+          } catch (err) {
+            console.error(err);
+            setStatus("Error generating .xlsx. See console for details.");
+          }
+        });
+
+      document.addEventListener("DOMContentLoaded", initCalendar);
+    </script>
+  </body>
+</html>
+

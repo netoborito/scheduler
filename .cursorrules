@@ -1,0 +1,19 @@
+# Cursor Rules for Industrial Maintenance Scheduler
+
+## Code Style
+- Follow PEP 8 style guide
+- Use Black formatter with 88 character line length
+- Use type hints for all function parameters and return values
+- Use descriptive variable and function names
+
+## Python Standards
+- Use f-strings for string formatting
+- Prefer pathlib.Path over os.path
+- Use dataclasses for data structures
+- Import order: standard library, third-party, local imports
+
+## Project Structure
+- Keep business logic in `app/services/`
+- Keep domain models in `app/models/`
+- Keep utilities in `app/utils/`
+- Keep API routes in `app/main.py` (consider splitting into `app/routes/` if it grows)
