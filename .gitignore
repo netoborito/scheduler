@@ -61,3 +61,7 @@ dmypy.json
 # Project specific
 samples/*.xlsx
 !samples/README.md
+
+# Data files (keep shifts.json as template)
+data/*.json
+!data/shifts.json

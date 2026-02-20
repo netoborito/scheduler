@@ -1,0 +1,1 @@
+"""Industrial Maintenance Scheduler application."""

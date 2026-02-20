@@ -1,0 +1,14 @@
+[
+  {
+    "trade": "NC-E/I",
+    "shift_duration_hours": 8,
+    "monday": true,
+    "tuesday": true,
+    "wednesday": true,
+    "thursday": true,
+    "friday": true,
+    "saturday": false,
+    "sunday": false,
+    "technicians_per_crew": 2
+  }
+]

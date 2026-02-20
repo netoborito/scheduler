@@ -1,0 +1,508 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Shift Management - Industrial Maintenance Scheduler</title>
+    <style>
+      body {
+        font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
+          sans-serif;
+        margin: 0;
+        padding: 0;
+        background: #0f172a;
+        color: #e5e7eb;
+      }
+
+      .page {
+        max-width: 1200px;
+        margin: 0 auto;
+        padding: 24px;
+      }
+
+      h1 {
+        margin-bottom: 8px;
+      }
+
+      .card {
+        background: #020617;
+        border-radius: 12px;
+        padding: 16px 20px;
+        box-shadow: 0 20px 40px rgba(0, 0, 0, 0.6);
+        margin-bottom: 20px;
+        border: 1px solid #1e293b;
+      }
+
+      .form-group {
+        margin-bottom: 16px;
+      }
+
+      label {
+        display: block;
+        font-size: 0.9rem;
+        color: #cbd5f5;
+        margin-bottom: 6px;
+      }
+
+      input[type="text"],
+      input[type="number"] {
+        background: #020617;
+        border-radius: 6px;
+        border: 1px solid #1f2937;
+        padding: 8px 12px;
+        color: #e5e7eb;
+        font-size: 0.9rem;
+        width: 100%;
+        max-width: 300px;
+      }
+
+      input[type="checkbox"] {
+        width: 18px;
+        height: 18px;
+        margin-right: 8px;
+        cursor: pointer;
+      }
+
+      .checkbox-group {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 16px;
+        margin-top: 8px;
+      }
+
+      .checkbox-item {
+        display: flex;
+        align-items: center;
+      }
+
+      button {
+        border-radius: 6px;
+        border: none;
+        padding: 8px 16px;
+        font-size: 0.9rem;
+        cursor: pointer;
+        font-weight: 600;
+        margin-right: 8px;
+        margin-top: 8px;
+      }
+
+      button.primary {
+        background: linear-gradient(135deg, #22c55e, #16a34a);
+        color: white;
+      }
+
+      button.secondary {
+        background: transparent;
+        border: 1px solid #4b5563;
+        color: #e5e7eb;
+      }
+
+      button.danger {
+        background: linear-gradient(135deg, #ef4444, #dc2626);
+        color: white;
+      }
+
+      button:hover {
+        opacity: 0.9;
+      }
+
+      .status {
+        font-size: 0.85rem;
+        color: #9ca3af;
+        margin-top: 8px;
+        padding: 8px;
+        border-radius: 6px;
+        background: #1e293b;
+      }
+
+      .status.success {
+        color: #22c55e;
+        background: #064e3b;
+      }
+
+      .status.error {
+        color: #ef4444;
+        background: #7f1d1d;
+      }
+
+      .shifts-list {
+        margin-top: 20px;
+      }
+
+      .shift-item {
+        background: #1e293b;
+        border-radius: 8px;
+        padding: 16px;
+        margin-bottom: 12px;
+        border: 1px solid #334155;
+      }
+
+      .shift-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 12px;
+      }
+
+      .shift-title {
+        font-weight: 600;
+        font-size: 1.1rem;
+        color: #e5e7eb;
+      }
+
+      .shift-details {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 12px;
+        font-size: 0.9rem;
+        color: #cbd5f5;
+      }
+
+      .shift-detail {
+        display: flex;
+        gap: 8px;
+      }
+
+      .shift-detail-label {
+        font-weight: 600;
+      }
+
+      .days-list {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+      }
+
+      .day-badge {
+        background: #334155;
+        padding: 4px 8px;
+        border-radius: 4px;
+        font-size: 0.8rem;
+      }
+
+      .nav-link {
+        color: #60a5fa;
+        text-decoration: none;
+        margin-bottom: 16px;
+        display: inline-block;
+      }
+
+      .nav-link:hover {
+        text-decoration: underline;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="page">
+      <a href="/" class="nav-link">← Back to Scheduler</a>
+
+      <div class="card">
+        <h1>Shift Management</h1>
+        <p style="font-size: 0.95rem; color: #9ca3af; margin-top: 0">
+          Create, update, and delete shift configurations for different trades.
+        </p>
+
+        <form id="shift-form">
+          <div class="form-group">
+            <label for="trade">Trade Name *</label>
+            <input
+              type="text"
+              id="trade"
+              name="trade"
+              required
+              placeholder="e.g., NC-E/I"
+            />
+          </div>
+
+          <div class="form-group">
+            <label for="shift_duration_hours">Shift Duration (hours) *</label>
+            <input
+              type="number"
+              id="shift_duration_hours"
+              name="shift_duration_hours"
+              min="1"
+              max="24"
+              value="8"
+              required
+            />
+          </div>
+
+          <div class="form-group">
+            <label>Active Days *</label>
+            <div class="checkbox-group">
+              <div class="checkbox-item">
+                <input type="checkbox" id="monday" name="monday" />
+                <label for="monday">Monday</label>
+              </div>
+              <div class="checkbox-item">
+                <input type="checkbox" id="tuesday" name="tuesday" />
+                <label for="tuesday">Tuesday</label>
+              </div>
+              <div class="checkbox-item">
+                <input type="checkbox" id="wednesday" name="wednesday" />
+                <label for="wednesday">Wednesday</label>
+              </div>
+              <div class="checkbox-item">
+                <input type="checkbox" id="thursday" name="thursday" />
+                <label for="thursday">Thursday</label>
+              </div>
+              <div class="checkbox-item">
+                <input type="checkbox" id="friday" name="friday" />
+                <label for="friday">Friday</label>
+              </div>
+              <div class="checkbox-item">
+                <input type="checkbox" id="saturday" name="saturday" />
+                <label for="saturday">Saturday</label>
+              </div>
+              <div class="checkbox-item">
+                <input type="checkbox" id="sunday" name="sunday" />
+                <label for="sunday">Sunday</label>
+              </div>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label for="technicians_per_crew">Technicians per Crew *</label>
+            <input
+              type="number"
+              id="technicians_per_crew"
+              name="technicians_per_crew"
+              min="1"
+              value="1"
+              required
+            />
+          </div>
+
+          <button type="submit" class="primary" id="submit-btn">Create Shift</button>
+          <button type="button" class="secondary" id="cancel-edit-btn" style="display: none">
+            Cancel Edit
+          </button>
+        </form>
+
+        <div id="status"></div>
+      </div>
+
+      <div class="card">
+        <h2 style="margin-top: 0">Existing Shifts</h2>
+        <div id="shifts-list" class="shifts-list">
+          <p style="color: #9ca3af">Loading shifts...</p>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      let editingTrade = null;
+
+      // Load shifts on page load
+      document.addEventListener("DOMContentLoaded", () => {
+        loadShifts();
+      });
+
+      async function loadShifts() {
+        try {
+          const response = await fetch("/api/shifts");
+          const data = await response.json();
+          displayShifts(data.shifts);
+        } catch (error) {
+          showStatus("Error loading shifts: " + error.message, "error");
+        }
+      }
+
+      function displayShifts(shifts) {
+        const listEl = document.getElementById("shifts-list");
+        if (shifts.length === 0) {
+          listEl.innerHTML = "<p style='color: #9ca3af'>No shifts configured yet.</p>";
+          return;
+        }
+
+        listEl.innerHTML = shifts
+          .map((shift) => {
+            const days = [];
+            if (shift.monday) days.push("Mon");
+            if (shift.tuesday) days.push("Tue");
+            if (shift.wednesday) days.push("Wed");
+            if (shift.thursday) days.push("Thu");
+            if (shift.friday) days.push("Fri");
+            if (shift.saturday) days.push("Sat");
+            if (shift.sunday) days.push("Sun");
+
+            return `
+              <div class="shift-item">
+                <div class="shift-header">
+                  <div class="shift-title">${shift.trade}</div>
+                  <div>
+                    <button class="secondary" onclick="editShift('${shift.trade}')">Edit</button>
+                    <button class="danger" onclick="deleteShift('${shift.trade}')">Delete</button>
+                  </div>
+                </div>
+                <div class="shift-details">
+                  <div class="shift-detail">
+                    <span class="shift-detail-label">Duration:</span>
+                    <span>${shift.shift_duration_hours} hours</span>
+                  </div>
+                  <div class="shift-detail">
+                    <span class="shift-detail-label">Crew Size:</span>
+                    <span>${shift.technicians_per_crew} technician${shift.technicians_per_crew !== 1 ? 's' : ''}</span>
+                  </div>
+                  <div class="shift-detail">
+                    <span class="shift-detail-label">Active Days:</span>
+                    <div class="days-list">
+                      ${days.map((day) => `<span class="day-badge">${day}</span>`).join("")}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            `;
+          })
+          .join("");
+      }
+
+      async function editShift(trade) {
+        try {
+          const response = await fetch(`/api/shifts/${encodeURIComponent(trade)}`);
+          const data = await response.json();
+          const shift = data.shift;
+
+          // Populate form
+          document.getElementById("trade").value = shift.trade;
+          document.getElementById("trade").disabled = true;
+          document.getElementById("shift_duration_hours").value = shift.shift_duration_hours;
+          document.getElementById("technicians_per_crew").value = shift.technicians_per_crew;
+          document.getElementById("monday").checked = shift.monday;
+          document.getElementById("tuesday").checked = shift.tuesday;
+          document.getElementById("wednesday").checked = shift.wednesday;
+          document.getElementById("thursday").checked = shift.thursday;
+          document.getElementById("friday").checked = shift.friday;
+          document.getElementById("saturday").checked = shift.saturday;
+          document.getElementById("sunday").checked = shift.sunday;
+
+          editingTrade = trade;
+          document.getElementById("submit-btn").textContent = "Update Shift";
+          document.getElementById("cancel-edit-btn").style.display = "inline-block";
+
+          // Scroll to form
+          document.getElementById("shift-form").scrollIntoView({ behavior: "smooth" });
+        } catch (error) {
+          showStatus("Error loading shift: " + error.message, "error");
+        }
+      }
+
+      function cancelEdit() {
+        editingTrade = null;
+        document.getElementById("shift-form").reset();
+        document.getElementById("trade").disabled = false;
+        document.getElementById("submit-btn").textContent = "Create Shift";
+        document.getElementById("cancel-edit-btn").style.display = "none";
+        showStatus("", "");
+      }
+
+      async function deleteShift(trade) {
+        if (!confirm(`Are you sure you want to delete the shift for trade "${trade}"?`)) {
+          return;
+        }
+
+        try {
+          const response = await fetch(`/api/shifts/${encodeURIComponent(trade)}`, {
+            method: "DELETE",
+          });
+
+          if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.detail || "Failed to delete shift");
+          }
+
+          showStatus(`Shift "${trade}" deleted successfully`, "success");
+          loadShifts();
+          if (editingTrade === trade) {
+            cancelEdit();
+          }
+        } catch (error) {
+          showStatus("Error deleting shift: " + error.message, "error");
+        }
+      }
+
+      document.getElementById("shift-form").addEventListener("submit", async (e) => {
+        e.preventDefault();
+
+        const formData = new FormData(e.target);
+        const shiftData = {
+          trade: formData.get("trade"),
+          shift_duration_hours: parseInt(formData.get("shift_duration_hours")),
+          monday: formData.get("monday") === "on",
+          tuesday: formData.get("tuesday") === "on",
+          wednesday: formData.get("wednesday") === "on",
+          thursday: formData.get("thursday") === "on",
+          friday: formData.get("friday") === "on",
+          saturday: formData.get("saturday") === "on",
+          sunday: formData.get("sunday") === "on",
+          technicians_per_crew: parseInt(formData.get("technicians_per_crew")),
+        };
+
+        // Check at least one day is selected
+        const hasDay =
+          shiftData.monday ||
+          shiftData.tuesday ||
+          shiftData.wednesday ||
+          shiftData.thursday ||
+          shiftData.friday ||
+          shiftData.saturday ||
+          shiftData.sunday;
+
+        if (!hasDay) {
+          showStatus("Please select at least one active day", "error");
+          return;
+        }
+
+        try {
+          const formDataToSend = new FormData();
+          Object.keys(shiftData).forEach((key) => {
+            if (typeof shiftData[key] === "boolean") {
+              if (shiftData[key]) {
+                formDataToSend.append(key, "true");
+              }
+            } else {
+              formDataToSend.append(key, shiftData[key]);
+            }
+          });
+
+          let url = "/api/shifts";
+          let method = "POST";
+
+          if (editingTrade) {
+            url = `/api/shifts/${encodeURIComponent(editingTrade)}`;
+            method = "PUT";
+          }
+
+          const response = await fetch(url, {
+            method: method,
+            body: formDataToSend,
+          });
+
+          if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.detail || "Failed to save shift");
+          }
+
+          const result = await response.json();
+          showStatus(result.message || "Shift saved successfully", "success");
+          loadShifts();
+          cancelEdit();
+        } catch (error) {
+          showStatus("Error saving shift: " + error.message, "error");
+        }
+      });
+
+      document.getElementById("cancel-edit-btn").addEventListener("click", cancelEdit);
+
+      function showStatus(message, type = "") {
+        const statusEl = document.getElementById("status");
+        statusEl.textContent = message;
+        statusEl.className = "status " + type;
+        if (!message) {
+          statusEl.style.display = "none";
+        } else {
+          statusEl.style.display = "block";
+        }
+      }
+    </script>
+  </body>
+</html>

@@ -102,6 +102,22 @@ A sample backlog file (`samples/EAMExport.xlsx`) is included for testing. The pa
 4. Open `http://127.0.0.1:8000` in your browser
 5. Upload `samples/EAMExport.xlsx` or your own backlog file
 
+### Testing & Debugging
+
+Use the debugger script to test components:
+```bash
+# Interactive menu
+python debug.py
+
+# Run specific tests
+python debug.py all        # Run all tests
+python debug.py shift      # Test shift CRUD
+python debug.py excel      # Test Excel parsing
+python debug.py optimize   # Test optimizer
+```
+
+See `README_DEBUG.md` for detailed usage instructions.
+
 ### Code Formatting
 
 The project is configured to automatically format Python code according to PEP 8 on save:
