@@ -50,12 +50,9 @@ async def api_optimize(
     backlog_file: UploadFile = File(...),
 ) -> dict:
     backlog = await backlog_file.read()
-    work_orders = parse_backlog_from_excel(backlog)
     start_date = get_next_monday()
-    schedule = optimize_schedule(
-        work_orders=work_orders, 
-        start_date=start_date
-    )
+    work_orders = parse_backlog_from_excel(backlog, start_date=start_date)
+    schedule = optimize_schedule(work_orders=work_orders, start_date=start_date)
     return {"schedule": schedule.to_api_payload()}
 
 
@@ -64,12 +61,9 @@ async def api_optimize_xlsx(
     backlog_file: UploadFile = File(...),
 ) -> StreamingResponse:
     backlog_bytes = await backlog_file.read()
-    work_orders = parse_backlog_from_excel(backlog_bytes)
     start_date = get_next_monday()
-    schedule = optimize_schedule(
-        work_orders=work_orders, 
-        start_date=start_date
-    )
+    work_orders = parse_backlog_from_excel(backlog_bytes, start_date=start_date)
+    schedule = optimize_schedule(work_orders=work_orders, start_date=start_date)
 
     wb = build_schedule_workbook(schedule)
     buffer = BytesIO()
@@ -97,12 +91,14 @@ async def api_get_shifts() -> dict:
     return {"shifts": [shift.to_dict() for shift in shifts]}
 
 
-@app.get("/api/shifts/{trade}")
+@app.get("/api/shifts/{trade:path}")
 async def api_get_shift(trade: str) -> dict:
-    """Get a specific shift by trade."""
+    """Get a specific shift by trade (trade may contain slashes, e.g. NC-E/I)."""
     shift = get_shift_by_trade(trade)
     if not shift:
-        raise HTTPException(status_code=404, detail=f"Shift with trade '{trade}' not found")
+        raise HTTPException(
+            status_code=404, detail=f"Shift with trade '{trade}' not found"
+        )
     return {"shift": shift.to_dict()}
 
 
@@ -139,7 +135,7 @@ async def api_create_shift(
         raise HTTPException(status_code=400, detail=str(e))
 
 
-@app.put("/api/shifts/{trade}")
+@app.put("/api/shifts/{trade:path}")
 async def api_update_shift(
     trade: str,
     shift_duration_hours: int = Form(...),
@@ -167,12 +163,15 @@ async def api_update_shift(
     )
     try:
         update_shift(trade, updated_shift)
-        return {"message": "Shift updated successfully", "shift": updated_shift.to_dict()}
+        return {
+            "message": "Shift updated successfully",
+            "shift": updated_shift.to_dict(),
+        }
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
 
 
-@app.delete("/api/shifts/{trade}")
+@app.delete("/api/shifts/{trade:path}")
 async def api_delete_shift(trade: str) -> dict:
     """Delete a shift."""
     try:
@@ -189,4 +188,3 @@ async def health() -> dict:
 
 def create_app() -> FastAPI:
     return app
-

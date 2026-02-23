@@ -1,8 +1,9 @@
 """Date utility functions for scheduling."""
 from datetime import date, timedelta
+from typing import Optional
 
 
-def get_next_monday(base_date: date | None = None) -> date:
+def get_next_monday(base_date: Optional[date] = None) -> date:
     """Get the next Monday from the given date (or today if not provided).
     
     If the given date is already a Monday, returns that date.

@@ -240,6 +240,59 @@ def test_optimizer():
         traceback.print_exc()
 
 
+def test_optimizer_with_excel_backlog():
+    """Test optimize_schedule using work orders from parse_backlog_from_excel(samples/EAMExport.xlsx)."""
+    print_section("Testing Optimizer with Excel Backlog (samples/EAMExport.xlsx)")
+
+    sample_file = Path("samples/EAMExport.xlsx")
+    if not sample_file.exists():
+        print(f"   ✗ Sample file not found: {sample_file}")
+        return
+
+    try:
+        xlsx_bytes = sample_file.read_bytes()
+        start_date = get_next_monday()
+        work_orders = parse_backlog_from_excel(xlsx_bytes, start_date=start_date)
+    except Exception as e:
+        print(f"   ✗ Error loading/parsing Excel: {e}")
+        import traceback
+        traceback.print_exc()
+        return
+
+    print(f"   Loaded {len(work_orders)} work orders from Excel")
+    if not work_orders:
+        print("   ⚠ No work orders to optimize")
+        return
+
+    for wo in work_orders[:5]:
+        print(f"   - {wo.id}: {wo.trade}, priority {wo.priority}, {wo.duration_hours}h")
+    if len(work_orders) > 5:
+        print(f"   ... and {len(work_orders) - 5} more")
+
+    try:
+        schedule = optimize_schedule(work_orders=work_orders, start_date=start_date)
+        print(f"\n   ✓ Schedule generated")
+        print(f"   Start date: {schedule.start_date}")
+        print(f"   Horizon: {schedule.horizon_days} days")
+        print(f"   Assignments: {len(schedule.assignments)}")
+
+        if schedule.assignments:
+            print("\n   Assignments:")
+            from datetime import timedelta
+            for assignment in schedule.assignments:
+                assigned_date = schedule.start_date + timedelta(days=assignment.day_offset)
+                print(
+                    f"   - {assignment.work_order_id} → {assignment.resource_id} "
+                    f"on {assigned_date} (day {assignment.day_offset})"
+                )
+        else:
+            print("   ⚠ No assignments generated")
+    except Exception as e:
+        print(f"   ✗ Error optimizing schedule: {e}")
+        import traceback
+        traceback.print_exc()
+
+
 def test_excel_output():
     """Test Excel schedule output."""
     print_section("Testing Excel Schedule Output")
@@ -343,6 +396,8 @@ def main():
             test_work_order_parsing()
         elif test_name == "optimize":
             test_optimizer()
+        elif test_name == "optimize-excel":
+            test_optimizer_with_excel_backlog()
         elif test_name == "output":
             test_excel_output()
         elif test_name == "all":
@@ -353,7 +408,7 @@ def main():
             test_excel_output()
         else:
             print(f"Unknown test: {test_name}")
-            print("Available tests: date, shift, excel, optimize, output, all")
+            print("Available tests: date, shift, excel, optimize, optimize-excel, output, all")
     else:
         # Run interactive menu
         interactive_menu()

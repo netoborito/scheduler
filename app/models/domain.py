@@ -11,6 +11,9 @@ class WorkOrder:
     priority: int
     due_date: Optional[date]
     trade: str  # Required trade/resource type for this work order
+    type: str = ""  # Work order type (e.g. "Corrective")
+    safety: bool = False  # Safety flag from backlog
+    age_days: int = 0  # Age of work order in days
 
 
 @dataclass
@@ -58,4 +61,3 @@ class Schedule:
                 }
             )
         return events
-

@@ -1,4 +1,5 @@
 """Service for managing shift data stored in JSON format."""
+
 from __future__ import annotations
 
 import json
@@ -18,7 +19,7 @@ def ensure_data_directory() -> Path:
     return data_dir
 
 
-def load_shifts(shifts_file: Path | None = None) -> List[Shift]:
+def load_shifts(shifts_file: Optional[Path] = None) -> List[Shift]:
     """Load shifts from JSON file.
 
     Args:
@@ -36,12 +37,13 @@ def load_shifts(shifts_file: Path | None = None) -> List[Shift]:
     try:
         with open(shifts_file, "r", encoding="utf-8") as f:
             data = json.load(f)
-            return [Shift.from_dict(shift_data) for shift_data in data]
+            shifts_sorted = [Shift.from_dict(shift_data) for shift_data in data]
+            return sorted(shifts_sorted, key=lambda x: x.trade)
     except (json.JSONDecodeError, KeyError, TypeError) as e:
         raise ValueError(f"Invalid shift data in {shifts_file}: {e}") from e
 
 
-def save_shifts(shifts: List[Shift], shifts_file: Path | None = None) -> None:
+def save_shifts(shifts: List[Shift], shifts_file: Optional[Path] = None) -> None:
     """Save shifts to JSON file.
 
     Args:
@@ -59,7 +61,9 @@ def save_shifts(shifts: List[Shift], shifts_file: Path | None = None) -> None:
         json.dump(data, f, indent=2, ensure_ascii=False)
 
 
-def get_shift_by_trade(trade: str, shifts_file: Path | None = None) -> Optional[Shift]:
+def get_shift_by_trade(
+    trade: str, shifts_file: Optional[Path] = None
+) -> Optional[Shift]:
     """Get a shift by trade name.
 
     Args:
@@ -76,7 +80,7 @@ def get_shift_by_trade(trade: str, shifts_file: Path | None = None) -> Optional[
     return None
 
 
-def add_shift(shift: Shift, shifts_file: Path | None = None) -> None:
+def add_shift(shift: Shift, shifts_file: Optional[Path] = None) -> None:
     """Add a new shift to the JSON file.
 
     Args:
@@ -95,7 +99,7 @@ def add_shift(shift: Shift, shifts_file: Path | None = None) -> None:
 
 
 def update_shift(
-    trade: str, updated_shift: Shift, shifts_file: Path | None = None
+    trade: str, updated_shift: Shift, shifts_file: Optional[Path] = None
 ) -> None:
     """Update an existing shift by trade name.
 
@@ -119,7 +123,7 @@ def update_shift(
     save_shifts(shifts, shifts_file)
 
 
-def delete_shift(trade: str, shifts_file: Path | None = None) -> None:
+def delete_shift(trade: str, shifts_file: Optional[Path] = None) -> None:
     """Delete a shift by trade name.
 
     Args:
@@ -137,7 +141,7 @@ def delete_shift(trade: str, shifts_file: Path | None = None) -> None:
     save_shifts(shifts, shifts_file)
 
 
-def get_all_shifts(shifts_file: Path | None = None) -> List[Shift]:
+def get_all_shifts(shifts_file: Optional[Path] = None) -> List[Shift]:
     """Get all shifts.
 
     Args:
