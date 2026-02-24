@@ -1,7 +1,9 @@
 """Debug and testing script for the Industrial Maintenance Scheduler."""
+import csv
+import os
 import sys
 from pathlib import Path
-from datetime import date
+from datetime import date, timedelta
 
 # Add the project root to the path
 sys.path.insert(0, str(Path(__file__).parent))
@@ -242,9 +244,12 @@ def test_optimizer():
 
 def test_optimizer_with_excel_backlog():
     """Test optimize_schedule using work orders from parse_backlog_from_excel(samples/EAMExport.xlsx)."""
-    print_section("Testing Optimizer with Excel Backlog (samples/EAMExport.xlsx)")
+    default_sample = "samples/EAMExport.xlsx"
+    sample_path = os.environ.get("SAMPLE_EXCEL", default_sample)
+    output_csv = os.environ.get("OUTPUT_SCHEDULE_CSV", "").strip()
+    print_section(f"Testing Optimizer with Excel Backlog ({sample_path})")
 
-    sample_file = Path("samples/EAMExport.xlsx")
+    sample_file = Path(sample_path)
     if not sample_file.exists():
         print(f"   ✗ Sample file not found: {sample_file}")
         return
@@ -276,17 +281,52 @@ def test_optimizer_with_excel_backlog():
         print(f"   Horizon: {schedule.horizon_days} days")
         print(f"   Assignments: {len(schedule.assignments)}")
 
+        wo_duration = {wo.id: wo.duration_hours for wo in work_orders}
+        wo_description = {wo.id: wo.description for wo in work_orders}
+        wo_priority = {wo.id: wo.priority for wo in work_orders}
         if schedule.assignments:
             print("\n   Assignments:")
-            from datetime import timedelta
             for assignment in schedule.assignments:
                 assigned_date = schedule.start_date + timedelta(days=assignment.day_offset)
+                duration_h = wo_duration.get(assignment.work_order_id, 0)
                 print(
                     f"   - {assignment.work_order_id} → {assignment.resource_id} "
-                    f"on {assigned_date} (day {assignment.day_offset})"
+                    f"on {assigned_date} ({duration_h}h)"
                 )
         else:
             print("   ⚠ No assignments generated")
+
+        if output_csv:
+            csv_path = Path(output_csv)
+            csv_path.parent.mkdir(parents=True, exist_ok=True)
+            with open(csv_path, "w", newline="", encoding="utf-8") as f:
+                writer = csv.writer(f)
+                writer.writerow(
+                    [
+                        "work_order_id",
+                        "resource_id",
+                        "scheduled_date",
+                        "duration",
+                        "description",
+                        "priority",
+                    ]
+                )
+                for a in schedule.assignments:
+                    scheduled_date = schedule.start_date + timedelta(days=a.day_offset)
+                    duration_h = wo_duration.get(a.work_order_id, 0)
+                    description = wo_description.get(a.work_order_id, "")
+                    priority = wo_priority.get(a.work_order_id, 0)
+                    writer.writerow(
+                        [
+                            a.work_order_id,
+                            a.resource_id,
+                            scheduled_date,
+                            duration_h,
+                            description,
+                            priority,
+                        ]
+                    )
+            print(f"\n   ✓ Schedule written to {csv_path}")
     except Exception as e:
         print(f"   ✗ Error optimizing schedule: {e}")
         import traceback

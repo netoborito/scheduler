@@ -1,23 +1,22 @@
 from __future__ import annotations
 
 from typing import List, Optional, Set
-from datetime import date
+from datetime import date, timedelta
 from app.services.shift_service import load_shifts
+from collections import defaultdict
 from ortools.sat.python import cp_model
 
 from app.models.domain import WorkOrder, Assignment, Schedule
-from collections import defaultdict
-
-HOURS_PER_DAY = 8.0
 
 
 def optimize_schedule(
-    work_orders: List[WorkOrder], start_date: Optional[date] = None
-) -> Schedule:
-    """Optimize schedule for a fixed 7-day horizon starting from start_date."""
-    horizon_days = 7  # Fixed 7-day horizon
-    """Optimize schedule using work order trades as resources."""
+        work_orders: List[WorkOrder], start_date: Optional[date] = None) -> Schedule:
+
+    # Create the model
     model = cp_model.CpModel()
+
+    # Define the horizon
+    horizon_days = 7  # Fixed 7-day horizon
 
     # Get all shifts
     shifts = load_shifts()
@@ -25,9 +24,9 @@ def optimize_schedule(
     if not shifts:
         return Schedule(assignments=[], horizon_days=horizon_days)
 
-    # Decision variables: x[wo.id][duration][resource][day] = 1 if assigned
-    # Only create variables for days that the crew is active
+    # Decision variables: x[wo.id][resource][day] = 1 if assigned
     x = {}
+
     days = [
         "monday",
         "tuesday",
@@ -38,69 +37,83 @@ def optimize_schedule(
         "sunday",
     ]
 
+    objective_gains = {
+        "age": .1,
+        "priority": 1,
+        "safety": 1,
+        "type": 1,
+    }
+
     for crew in shifts:
 
         crew_wo = [wo for wo in work_orders if wo.trade == crew.trade]
 
         for day in days:
+
             if crew.is_active_on_day(day):
+
+                shift_wo = []
+
                 for wo in crew_wo:
-                    x[wo.id, wo.duration_hours, crew.trade, day] = model.NewBoolVar(
-                        f"x_{wo.id}_{wo.duration_hours}_{crew.trade}_{day}"
-                    )
+                    if wo.fixed and wo.schedule_date == start_date+timedelta(days=days.index(day)):
+                        x[wo.id, crew.trade, day] = model.NewConstant(1)
+                    else:
+                        x[wo.id, crew.trade, day] = model.NewBoolVar(
+                            f"x_{wo.id}_{crew.trade}_{day}"
+                        )
+
+                    shift_wo.append(x[wo.id, crew.trade, day]
+                                    * wo.duration_hours)
+
+                # Add constraint: total work order duration per day per crew <= technicians_per_crew * shift_duration_hours
                 model.Add(
                     sum(
-                        x[wo.id, wo.duration_hours, crew.trade, day] * wo.duration_hours
-                        for wo in crew_wo
+                        shift_wo
                     )
                     <= crew.technicians_per_crew * crew.shift_duration_hours
                 )
 
-    # unique assignment per work order
-    possible_wo_assignments = defaultdict(list)
+    # Work order scheduled only once: sum of all x for this wo.id <= 1
+    for wo in work_orders:
+        wo_vars = [var for (wo_id, trade, day),
+                   var in x.items() if wo_id == wo.id]
+        model.Add(sum(wo_vars) <= 1)
 
-    for (wo_id, duration, trade, day), var in x.items():
-        possible_wo_assignments[wo_id].append(var)
-
-    for wo_id, vars in possible_wo_assignments.items():
-        model.Add(sum(vars) <= 1)
-
-    # Objective: prioritize higher priority work orders earlier
+    # Objective: prioritize across several parameters based on gains for fine-tuning
     objective_terms = []
 
-    for (wo_id, duration, trade, day), var in x.items():
-    for wo in work_orders:
-        r = wo.trade
-        for d in range(horizon_days):
-            # Higher priority (larger number) and earlier days are preferred
-            weight = wo.priority * (horizon_days - d)
-            objective_terms.append(weight * x[(wo.id, r, d)])
+    wo_by_id = {wo.id: wo for wo in work_orders}
+    for (wo_id, trade, day), var in x.items():
 
+        wo = wo_by_id.get(wo_id)
 
-    model.minimize(-sum(objective_terms))
+        type_as_int = 1 if wo.type == "Preventive maintenance" else 0
+        safety_as_int = 1 if wo.safety else 0
 
+        objective_terms.append(var * wo.age_days * objective_gains["age"])
+        objective_terms.append(var * (5-wo.priority) *
+                               objective_gains["priority"])
+        objective_terms.append(var * safety_as_int * objective_gains["safety"])
+        objective_terms.append(var * type_as_int * objective_gains["type"])
+
+    model.Maximize(sum(objective_terms))
+
+    # Solve the model
     solver = cp_model.CpSolver()
     solver_status = solver.Solve(model)
 
-    assignments: List[Assignment] = []
+    # Create the schedule
+    assignments = []
+
     if solver_status in (cp_model.OPTIMAL, cp_model.FEASIBLE):
-        for wo in work_orders:
-            r = wo.trade
-            for d in range(horizon_days):
-                if solver.Value(x[(wo.id, r, d)]) > 0.5:
-                    assignments.append(
-                        Assignment(
-                            work_order_id=wo.id,
-                            day_offset=d,
-                            resource_id=r,
-                        )
+        for (wo_id, trade, day), var in x.items():
+            if solver.Value(var) > 0.5:
+                assignments.append(
+                    Assignment(
+                        work_order_id=wo_id,
+                        day_offset=days.index(day),
+                        resource_id=trade,
                     )
+                )
 
-    if start_date is None:
-        from app.utils.date_utils import get_next_monday
-
-        start_date = get_next_monday()
-
-    return Schedule(
-        assignments=assignments, horizon_days=horizon_days, start_date=start_date
-    )
+    return Schedule(assignments=assignments, horizon_days=horizon_days, start_date=start_date,)

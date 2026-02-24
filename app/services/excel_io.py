@@ -3,7 +3,9 @@ from __future__ import annotations
 from datetime import date, timedelta
 from io import BytesIO
 from typing import List, Optional
+import json
 import re
+from pathlib import Path
 
 import pandas as pd
 from openpyxl import Workbook
@@ -81,7 +83,8 @@ def load_and_filter(
       within [start_date, start_date + horizon_days). Drops PMs due after scheduling horizon.
     """
     filtered = df.copy()
-    filtered = filtered.drop(columns=["Equipment Description"], errors="ignore")
+    filtered = filtered.drop(
+        columns=["Equipment Description"], errors="ignore")
 
     if "Status" in filtered.columns:
         filtered = filtered[filtered["Status"] == "Open - Ready to Schedule"]
@@ -96,7 +99,8 @@ def load_and_filter(
 
     # Remove PMs beyond the scheduling horizon
     beyond_horizon_PMs = (filtered.get("Type") == "Preventive maintenance") & (
-        filtered["Sched Start Date"] > pd.Timestamp(start_ts) + timedelta(days=7)
+        filtered["Sched Start Date"] > pd.Timestamp(
+            start_ts) + timedelta(days=7)
     )
     filtered = filtered[~beyond_horizon_PMs]
 
@@ -142,34 +146,55 @@ def parse_backlog_from_excel(
 
     work_orders: List[WorkOrder] = []
     for _, row in df.iterrows():
+
         # EAM Export format column mapping
         wo_id = str(row.get("Work Order", ""))
         description = str(row.get("Description", ""))
+
         # Convert duration to int (no fractional hours)
         duration_raw = row.get("Estimated Hs", 0.0)
         duration_hours = (
             int(round(float(duration_raw))) if not pd.isna(duration_raw) else 0
         )
         priority_str = row.get("Priority", "")
-        due_date_raw = row.get("Sched Start Date")
+        schedule_date_raw = row.get("Sched Start Date")
+
         trade_raw = row.get("Trade", "")
         trade = str(trade_raw).strip() if not pd.isna(trade_raw) else ""
+
         type_raw = row.get("Type", "")
         wo_type = str(type_raw).strip() if not pd.isna(type_raw) else ""
 
+        num_people_raw = row.get("Persons Required", 1)
+        num_people = int(num_people_raw) if not pd.isna(num_people_raw) else 1
+
+        equipment_raw = row.get("Equipment", "")
+        equipment = str(equipment_raw).strip(
+        ) if not pd.isna(equipment_raw) else ""
+
+        dept_raw = row.get("Department", "")
+        dept = str(dept_raw).strip() if not pd.isna(dept_raw) else ""
+
         safety = _parse_safety(row.get("Safety", False))
         age_days = _get_wo_age(row.get("Creation Date", None))
-        priority = _parse_priority(priority_str, wo_type=wo_type, safety=safety)
+        priority = _parse_priority(
+            priority_str, wo_type=wo_type, safety=safety)
 
         # Parse due date
-        if pd.isna(due_date_raw):
-            due_date = None
+        if pd.isna(schedule_date_raw):
+            schedule_date = None
         else:
-            due_date = pd.to_datetime(due_date_raw).date()
+            schedule_date = pd.to_datetime(schedule_date_raw).date()
 
         # Skip rows with missing essential data
         if not wo_id or duration_hours <= 0 or not trade:
             continue
+
+        # Fix flag (schedule on sched date) for Preventative maintenance
+        if type_raw == "Preventive maintenance":
+            fixed = True
+        else:
+            fixed = False
 
         work_orders.append(
             WorkOrder(
@@ -177,11 +202,93 @@ def parse_backlog_from_excel(
                 description=description,
                 duration_hours=duration_hours,
                 priority=priority,
-                due_date=due_date,
+                schedule_date=schedule_date,
                 trade=trade,
                 type=wo_type,
                 safety=safety,
                 age_days=age_days,
+                fixed=fixed,
+                num_people=num_people,
+                equipment=equipment,
+                dept=dept,
+            )
+        )
+
+    # Persist parsed backlog to JSON for later retrieval
+    try:
+        base_dir = Path(__file__).resolve().parents[2]
+        json_dir = base_dir / "data" / "json"
+        json_dir.mkdir(parents=True, exist_ok=True)
+        json_path = json_dir / "backlog.json"
+
+        payload = []
+        for wo in work_orders:
+            payload.append(
+                {
+                    "id": wo.id,
+                    "description": wo.description,
+                    "duration_hours": wo.duration_hours,
+                    "priority": wo.priority,
+                    "schedule_date": wo.schedule_date.isoformat() if wo.schedule_date else None,
+                    "trade": wo.trade,
+                    "type": wo.type,
+                    "safety": wo.safety,
+                    "age_days": wo.age_days,
+                    "fixed": wo.fixed,
+                    "num_people": wo.num_people,
+                    "equipment": wo.equipment,
+                    "dept": wo.dept,
+                }
+            )
+
+        json_path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+    except Exception:
+        # JSON persistence is best-effort; do not break parsing if it fails
+        pass
+
+    return work_orders
+
+
+def get_backlog_from_json() -> List[WorkOrder]:
+    """Load previously parsed work orders from data/json/backlog.json."""
+    base_dir = Path(__file__).resolve().parents[2]
+    json_path = base_dir / "data" / "json" / "backlog.json"
+
+    if not json_path.exists():
+        return []
+
+    try:
+        raw = json_path.read_text(encoding="utf-8")
+        data = json.loads(raw)
+    except Exception:
+        return []
+
+    work_orders: List[WorkOrder] = []
+    for item in data:
+        schedule_date_str = item.get("schedule_date")
+        if schedule_date_str:
+            try:
+                schedule_date = date.fromisoformat(schedule_date_str)
+            except ValueError:
+                schedule_date = None
+        else:
+            schedule_date = None
+
+        work_orders.append(
+            WorkOrder(
+                id=item.get("id"),
+                description=item.get("description", ""),
+                duration_hours=item.get("duration_hours", 0),
+                priority=item.get("priority", 0),
+                schedule_date=schedule_date,
+                trade=item.get("trade", ""),
+                type=item.get("type", ""),
+                safety=item.get("safety", False),
+                age_days=item.get("age_days", 0),
+                fixed=item.get("fixed", False),
+                num_people=item.get("num_people", 1),
+                equipment=item.get("equipment", ""),
+                dept=item.get("dept", ""),
             )
         )
 
@@ -198,8 +305,10 @@ def build_schedule_workbook(schedule: Schedule) -> Workbook:
     ws.append(
         [
             "work_order_id",
-            "resource_id",
-            "scheduled_date",
+            "num_people",
+            "equipment",
+            "dept",
+            "schedule_date",
             "day_offset",
         ]
     )
@@ -209,7 +318,9 @@ def build_schedule_workbook(schedule: Schedule) -> Workbook:
         ws.append(
             [
                 a.work_order_id,
-                a.resource_id,
+                a.num_people,
+                a.equipment,
+                a.dept,
                 scheduled_date,
                 a.day_offset,
             ]

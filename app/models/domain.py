@@ -2,18 +2,24 @@ from dataclasses import dataclass
 from datetime import date, timedelta
 from typing import List, Dict, Optional
 
+from numpy import int32
+
 
 @dataclass
 class WorkOrder:
-    id: str
+    id: int
     description: str
     duration_hours: int  # Integer hours only, no fractions
     priority: int
-    due_date: Optional[date]
+    schedule_date: date
     trade: str  # Required trade/resource type for this work order
     type: str = ""  # Work order type (e.g. "Corrective")
     safety: bool = False  # Safety flag from backlog
     age_days: int = 0  # Age of work order in days
+    fixed: bool = False  # Fixed flag (schedule on sched date)
+    num_people: int = 1  # Number of people required
+    equipment: str = ""  # Equipment identifier
+    dept: str = ""  # Department identifier
 
 
 @dataclass
