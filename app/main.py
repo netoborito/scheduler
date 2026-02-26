@@ -49,10 +49,15 @@ async def index(request: Request) -> HTMLResponse:
 async def api_optimize(
     backlog_file: UploadFile = File(...),
 ) -> dict:
+    print("backlog_file object:", backlog_file)
+    print("filename:", getattr(backlog_file, "filename", None),
+          "content_type:", getattr(backlog_file, "content_type", None))
     backlog = await backlog_file.read()
+    print("bytes read:", len(backlog))
     start_date = get_next_monday()
     work_orders = parse_backlog_from_excel(backlog, start_date=start_date)
-    schedule = optimize_schedule(work_orders=work_orders, start_date=start_date)
+    schedule = optimize_schedule(
+        work_orders=work_orders, start_date=start_date)
     return {"schedule": schedule.to_api_payload()}
 
 
@@ -62,8 +67,10 @@ async def api_optimize_xlsx(
 ) -> StreamingResponse:
     backlog_bytes = await backlog_file.read()
     start_date = get_next_monday()
-    work_orders = parse_backlog_from_excel(backlog_bytes, start_date=start_date)
-    schedule = optimize_schedule(work_orders=work_orders, start_date=start_date)
+    work_orders = parse_backlog_from_excel(
+        backlog_bytes, start_date=start_date)
+    schedule = optimize_schedule(
+        work_orders=work_orders, start_date=start_date)
 
     wb = build_schedule_workbook(schedule)
     buffer = BytesIO()

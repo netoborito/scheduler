@@ -47,18 +47,14 @@ def _parse_priority(
     return 5
 
 
-def _parse_safety(value) -> bool:
-    """Coerce Excel/string value to boolean for Safety column.
-    Accepts: True/False, 1/0, Yes/No, Y/N (case-insensitive).
-    """
-    if pd.isna(value):
-        return False
-    if isinstance(value, bool):
-        return value
-    if isinstance(value, (int, float)):
-        return bool(value)
-    s = str(value).strip().lower()
-    return s in ("yes", "y", "1", "true")
+def _parse_safety(safety_value, class_value) -> bool:
+    safety_flag = False
+
+    if pd.isna(class_value):
+        class_value = ""
+    if safety_value in ["yes", "true", "1", "y"] or class_value.lower() == "ehs":
+        safety_flag = True
+    return safety_flag
 
 
 def _get_wo_age(value: pd.Timestamp | date) -> int:
@@ -89,8 +85,8 @@ def load_and_filter(
     if "Status" in filtered.columns:
         filtered = filtered[filtered["Status"] == "Open - Ready to Schedule"]
 
-    filtered["Sched Start Date"] = pd.to_datetime(
-        filtered["Sched Start Date"], errors="coerce"
+    filtered["Sched. Start Date"] = pd.to_datetime(
+        filtered["Sched. Start Date"], errors="coerce"
     )
 
     end_date = start_date + timedelta(days=horizon_days)
@@ -99,15 +95,15 @@ def load_and_filter(
 
     # Remove PMs beyond the scheduling horizon
     beyond_horizon_PMs = (filtered.get("Type") == "Preventive maintenance") & (
-        filtered["Sched Start Date"] > pd.Timestamp(
-            start_ts) + timedelta(days=7)
+        filtered["Sched. Start Date"] > pd.Timestamp(
+            start_ts) + timedelta(days=horizon_days)
     )
     filtered = filtered[~beyond_horizon_PMs]
 
     # Keep: no date (NaT) or date in [start_date, end_date)
-    current_wo_omitted = filtered["Sched Start Date"].isna() | (
-        (filtered["Sched Start Date"] < start_ts)
-        & (filtered["Sched Start Date"] >= end_ts - timedelta(days=7))
+    current_wo_omitted = filtered["Sched. Start Date"].isna() | (
+        (filtered["Sched. Start Date"] < start_ts)
+        & (filtered["Sched. Start Date"] >= end_ts - timedelta(days=7))
     )
 
     filtered = filtered[~current_wo_omitted]
@@ -154,10 +150,9 @@ def parse_backlog_from_excel(
         # Convert duration to int (no fractional hours)
         duration_raw = row.get("Estimated Hs", 0.0)
         duration_hours = (
-            int(round(float(duration_raw))) if not pd.isna(duration_raw) else 0
+            1 if duration_raw <= 1 else int(
+                round(float(duration_raw))) if not pd.isna(duration_raw) else 1
         )
-        priority_str = row.get("Priority", "")
-        schedule_date_raw = row.get("Sched Start Date")
 
         trade_raw = row.get("Trade", "")
         trade = str(trade_raw).strip() if not pd.isna(trade_raw) else ""
@@ -175,12 +170,17 @@ def parse_backlog_from_excel(
         dept_raw = row.get("Department", "")
         dept = str(dept_raw).strip() if not pd.isna(dept_raw) else ""
 
-        safety = _parse_safety(row.get("Safety", False))
-        age_days = _get_wo_age(row.get("Creation Date", None))
+        # Safety or EHS get grouped with safety flag
+        safety_raw = row.get("Safety", "")
+        class_raw = row.get("Class", "")
+
+        safety = _parse_safety(safety_raw, class_raw)
+        age_days = _get_wo_age(row.get("Date Created", None))
         priority = _parse_priority(
-            priority_str, wo_type=wo_type, safety=safety)
+            row.get("Priority", ""), wo_type=wo_type, safety=safety)
 
         # Parse due date
+        schedule_date_raw = row.get("Sched. Start Date")
         if pd.isna(schedule_date_raw):
             schedule_date = None
         else:
@@ -190,8 +190,8 @@ def parse_backlog_from_excel(
         if not wo_id or duration_hours <= 0 or not trade:
             continue
 
-        # Fix flag (schedule on sched date) for Preventative maintenance
-        if type_raw == "Preventive maintenance":
+        # Fix flag (schedule on sched date) for Safety + Preventative maintenance (i.e. EHS pm)
+        if type_raw == "Preventive maintenance" and safety:
             fixed = True
         else:
             fixed = False
@@ -217,7 +217,7 @@ def parse_backlog_from_excel(
     # Persist parsed backlog to JSON for later retrieval
     try:
         base_dir = Path(__file__).resolve().parents[2]
-        json_dir = base_dir / "data" / "json"
+        json_dir = base_dir / "data" / "schedules"
         json_dir.mkdir(parents=True, exist_ok=True)
         json_path = json_dir / "backlog.json"
 
@@ -252,7 +252,8 @@ def parse_backlog_from_excel(
 def get_backlog_from_json() -> List[WorkOrder]:
     """Load previously parsed work orders from data/json/backlog.json."""
     base_dir = Path(__file__).resolve().parents[2]
-    json_path = base_dir / "data" / "json" / "backlog.json"
+    json_path = base_dir / "data" / "schedules" / \
+        "backlog" + "_" + date.today().isoformat() + ".json"
 
     if not json_path.exists():
         return []
