@@ -7,7 +7,7 @@ from jinja2.environment import load_extensions
 from app.services.shift_service import load_shifts
 from collections import defaultdict
 from ortools.sat.python import cp_model
-
+import csv
 from app.models.domain import WorkOrder, Assignment, Schedule
 
 
@@ -84,6 +84,7 @@ def optimize_schedule(
                     model.Add(
                         sum(shift_wo) <= sum(shift_wo_fixed)
                     )
+
                 else:
                     model.Add(
                         sum(shift_wo) <= crew.technicians_per_crew *
@@ -92,10 +93,13 @@ def optimize_schedule(
 
     # Constraint 3: Work order scheduled only once: sum of all x for this wo.id <= 1
     for wo in work_orders:
+        if wo.trade in [shift.trade for shift in shifts]:
+            wo_by_wo = []
+            for (wo_id, trade, day), decision_variable in x.items():
+                if wo_id == wo.id:
+                    wo_by_wo.append(decision_variable)
 
-        wo_by_wo = [var for (wo_id, trade, day),
-                    var in x.items() if wo_id == wo.id]
-        model.Add(sum(wo_by_wo) <= 1)
+            model.Add(sum(wo_by_wo) <= 1)
 
     # Objective terms
     objective_terms = []
