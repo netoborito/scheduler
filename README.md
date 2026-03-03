@@ -4,126 +4,88 @@ This project generates optimized work schedules for an industrial maintenance te
 
 ### High-level Architecture
 
-- **Optimizer backend (Python + FastAPI)**:
-  - Uses **Google OR-Tools** CP-SAT/linear solver to construct daily/weekly schedules.
-  - Imports **work order backlog** from `.xlsx` files (e.g., via `pandas` / `openpyxl`).
-  - Persists and reads:
-    - **Prioritization rules** (e.g., criticality, due dates, penalties).
-    - **Shift schedules** (teams, skills, availability).
-  - Exposes REST endpoints to:
-    - Upload backlog/parameters.
-    - Trigger schedule optimization.
-    - Download schedule as `.xlsx`.
+- **Backend (Python + FastAPI)**:
+  - **Google OR-Tools** CP-SAT solver for daily/weekly schedule optimization.
+  - Work order backlog from `.xlsx` (EAM export format via `pandas` / `openpyxl`).
+  - **Shift schedules** stored in `data/shifts.json`; parsed backlog can be cached in `data/json/backlog.json`.
+  - REST API: upload backlog, run optimization, download schedule as `.xlsx` or JSON.
 
-- **Web application (FastAPI templates or React SPA)**:
-  - Simple UI for testing and demo:
-    - Upload backlog `.xlsx`.
-    - Configure basic rules and shifts (initially via JSON or form fields).
-    - Visualize the resulting schedule on a **calendar-style view** (e.g., by day and maintainer/resource).
-    - Download the schedule as `.xlsx`.
+- **Web UI (FastAPI + Jinja + FullCalendar)**:
+  - **Home** (`/`): Upload backlog `.xlsx`, run **Optimize & Visualize**, view schedule on a calendar, download schedule `.xlsx`.
+  - **Shifts** (`/shifts`): Manage trades, shift days, crew size, and hours per shift (CRUD).
 
-- **Copilot / Chatbot integration (future step)**:
-  - A thin API layer so Copilot (or other chatbots) can:
-    - Upload backlog files and parameters.
-    - Ask "what-if" questions and request re-optimization.
-    - Apply interactive edits (swap jobs, move work orders, lock assignments).
+- **Future**: Copilot/chatbot integration; AWS deployment (e.g. ECS/Fargate, S3/CloudFront).
 
-- **AWS deployment (future step)**:
-  - Containerized backend (Docker) deployed to **AWS ECS/Fargate** or **AWS App Runner**.
-  - Static frontend hosted via **S3 + CloudFront** or served by the backend.
-  - Uses AWS services for file storage and configuration (e.g., S3, SSM Parameter Store) as needed.
+### Tech Stack
 
-### Data Flow (Conceptual)
+- **Python 3.11+**
+- **ortools** (scheduling), **fastapi** + **uvicorn** (API), **pandas** + **openpyxl** (Excel), **pydantic**, **jinja2**
+- **Frontend**: Jinja templates, FullCalendar (calendar), vanilla JS
 
-1. **Input**:
-   - User provides **work order backlog** in `.xlsx` format.
-   - Prioritization rules and **shift schedules** are persisted in the application (DB or config files). For the first version, these can be stored as JSON or in a lightweight DB (e.g., SQLite).
-
-2. **Optimization**:
-   - Backend converts work orders, rules, and shifts into an OR-Tools model.
-   - Objective examples:
-     - Minimize late/overdue work order penalties.
-     - Respect shift availability and skills.
-     - Balance workload across maintainers.
-   - Produces an assignment of work orders to:
-     - Specific maintainer/resource.
-     - Date and time (slot within a shift).
-
-3. **Output**:
-   - **`.xlsx` schedule**: tabular representation (e.g., row per assignment with dates, person, and work order).
-   - **Visual calendar** in the web UI for interactive inspection.
-
-4. **Interactive refinement via chatbot (Copilot)**:
-   - User interacts with a chatbot that:
-     - Reads the current schedule state from the backend.
-     - Applies modifications (e.g., pinning tasks, moving tasks).
-     - Requests a re-run of the optimization respecting those constraints.
-
-### Tech Stack (Initial Recommendation)
-
-- **Language**: Python 3.11+
-- **Core libraries**:
-  - `ortools` (Google OR-Tools).
-  - `fastapi` (backend API).
-  - `uvicorn` (ASGI server).
-  - `pydantic` (data validation).
-  - `pandas` + `openpyxl` (Excel I/O).
-- **Frontend**:
-  - Start with FastAPI + Jinja templates and a JS calendar library (e.g., FullCalendar) for faster initial integration.
-  - Optionally evolve into a separate SPA (React/Vue) if/when needed.
-
-### Project Layout (Proposed)
+### Project Layout
 
 - `app/`
-  - `main.py` – FastAPI entrypoint, routes.
-  - `models/` – Pydantic models for work orders, shifts, rules, schedules.
-  - `services/`
-    - `optimizer.py` – OR-Tools model construction and solve logic.
-    - `excel_io.py` – Read/write `.xlsx` for backlog and schedule.
-  - `routes/` – API endpoints for upload, optimize, download, etc.
-  - `templates/` – HTML templates for web UI.
-  - `static/` – JS/CSS assets (including calendar JS).
-- `tests/` – Unit and integration tests.
-- `requirements.txt` – Python dependencies.
-- `Dockerfile` – For AWS deployment.
+  - `main.py` – FastAPI app, routes (optimize, shifts CRUD, health).
+  - `models/` – `domain.py` (WorkOrder, Assignment, Schedule), `shift.py` (Shift).
+  - `services/` – `optimizer.py` (OR-Tools), `excel_io.py` (backlog/schedule Excel + JSON), `shift_service.py` (shifts persistence).
+  - `utils/` – `date_utils.py` (e.g. next Monday).
+  - `templates/` – `index.html`, `shifts.html`.
+  - `static/` – JS/CSS assets.
+- `data/` – `shifts.json` (shift definitions), `json/backlog.json` (optional cached backlog).
+- `samples/` – `EAMExport.xlsx` (sample backlog), `schedule_output.csv` (example output). See `samples/README.md`.
+- `debug.py` – Local testing and optimizer-with-Excel runs.
+- `requirements.txt`, `pyproject.toml` – Dependencies and Black/Ruff config.
 
 ### Sample Data
 
-A sample backlog file (`samples/EAMExport.xlsx`) is included for testing. The parser automatically detects EAM export format and maps columns appropriately. See `samples/README.md` for details.
+- **Backlog**: `samples/EAMExport.xlsx` – EAM export format (Work Order, Description, Estimated Hs, Priority, Trade, Type, Safety/Class, etc.). See `samples/README.md` for column details.
+- **Shifts**: Define trades and active days in the **Shifts** UI or by editing `data/shifts.json`.
 
 ### Quick Start
 
-1. Install dependencies: `pip install -r requirements.txt`
-2. **Install Black formatter extension** in Cursor/VS Code:
-   - Open Extensions (Ctrl+Shift+X)
-   - Search for "Black Formatter" by Microsoft
-   - Install it
-3. Start the server: `python -m uvicorn app.main:app --reload --port 8000`
-4. Open `http://127.0.0.1:8000` in your browser
-5. Upload `samples/EAMExport.xlsx` or your own backlog file
+1. **Create a virtual environment** (recommended):
+   ```bash
+   python -m venv .venv
+   .venv\Scripts\activate   # Windows
+   # source .venv/bin/activate   # macOS/Linux
+   ```
 
-### Testing & debugging
+2. **Install dependencies**:
+   ```bash
+   pip install -r requirements.txt
+   ```
 
-- **Debug script**: Run `python debug.py` for an interactive menu, or `python debug.py all` / `shift` / `excel` / `optimize` for specific tests. See [README_DEBUG.md](README_DEBUG.md) for full usage.
-- **IDE debugging**: Use the Python extension and `.vscode/launch.json` (e.g. "Python: FastAPI App" or "Python: Debugger Script"). Set breakpoints, press F5 to start, and use the Run and Debug view for variables and stepping.
+3. **Start the server**:
+   ```bash
+   uvicorn app.main:app --reload --port 8000
+   ```
+   For access from other machines on your network:
+   ```bash
+   uvicorn app.main:app --reload --port 8000 --host 0.0.0.0
+   ```
+
+4. Open **http://127.0.0.1:8000** → choose a backlog `.xlsx` (e.g. `samples/EAMExport.xlsx`) → **Optimize & Visualize** → view calendar and download schedule.
+
+5. Configure **Shifts** at **http://127.0.0.1:8000/shifts** so the optimizer has trades and capacity.
+
+### API Endpoints
+
+- `POST /api/optimize` – Body: `multipart/form-data` with `backlog_file` (.xlsx). Returns JSON schedule.
+- `POST /api/optimize/xlsx` – Same input; returns schedule as `.xlsx` attachment.
+- `GET /api/shifts`, `GET /api/shifts/{trade}`, `POST /api/shifts`, `PUT /api/shifts/{trade}`, `DELETE /api/shifts/{trade}` – Shifts CRUD.
+- `GET /health` – Health check.
+
+### Testing & Debugging
+
+- **Debug script**: `python debug.py` for an interactive menu, or `python debug.py shift` | `excel` | `optimize` | `optimize-excel` | `output` | `all`. Use `OUTPUT_SCHEDULE_CSV` and `SAMPLE_EXCEL` env vars when running optimizer tests. See `README_DEBUG.md` in the repo for full usage.
+- **IDE**: Use `.vscode/launch.json` (e.g. **Python: FastAPI App**, **Python: Debugger Script (Optimizer Tests)**). Set breakpoints and run with F5.
 
 ### Code Formatting
 
-The project is configured to automatically format Python code according to PEP 8 on save:
-- **Black formatter** is configured with 88-character line length
-- Formatting runs automatically when you save any `.py` file
-- Configuration is in `.vscode/settings.json` and `pyproject.toml`
-
-To manually format all files:
-```bash
-black app/
-```
+- **Black** (88-char line length) and **Ruff**; config in `pyproject.toml` and `.vscode/settings.json`. Format on save is enabled when the Black Formatter extension is installed.
+- Manual format: `black app/`
 
 ### Next Steps
 
-- Implement a **minimal vertical slice**:
-  - Upload backlog `.xlsx` → simple OR-Tools model → schedule output as `.xlsx` + basic calendar view.
-- Then:
-  - Expand prioritization rules and shift modeling.
-  - Add endpoints and conventions for Copilot integration on AWS.
-
+- Copilot/chatbot API for “what-if” questions and re-optimization.
+- Docker image and AWS deployment (ECS/Fargate, S3/CloudFront).

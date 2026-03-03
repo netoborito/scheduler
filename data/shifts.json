@@ -12,6 +12,42 @@
     "technicians_per_crew": 2
   },
   {
+    "trade": "NC-E/I PM",
+    "shift_duration_hours": 10,
+    "monday": true,
+    "tuesday": true,
+    "wednesday": true,
+    "thursday": true,
+    "friday": false,
+    "saturday": false,
+    "sunday": false,
+    "technicians_per_crew": 2
+  },
+  {
+    "trade": "NC-EQUIPMENT",
+    "shift_duration_hours": 8,
+    "monday": true,
+    "tuesday": true,
+    "wednesday": true,
+    "thursday": true,
+    "friday": true,
+    "saturday": false,
+    "sunday": false,
+    "technicians_per_crew": 1
+  },
+  {
+    "trade": "NC-LUBRICATOR",
+    "shift_duration_hours": 8,
+    "monday": true,
+    "tuesday": true,
+    "wednesday": true,
+    "thursday": true,
+    "friday": true,
+    "saturday": false,
+    "sunday": false,
+    "technicians_per_crew": 1
+  },
+  {
     "trade": "NC-MECHANIC EXE",
     "shift_duration_hours": 10,
     "monday": true,
@@ -21,18 +57,6 @@
     "friday": true,
     "saturday": false,
     "sunday": false,
-    "technicians_per_crew": 2
-  },
-  {
-    "trade": "NC-PM NIGHTS",
-    "shift_duration_hours": 12,
-    "monday": true,
-    "tuesday": true,
-    "wednesday": true,
-    "thursday": true,
-    "friday": true,
-    "saturday": true,
-    "sunday": true,
     "technicians_per_crew": 2
   },
   {
@@ -48,6 +72,18 @@
     "technicians_per_crew": 4
   },
   {
+    "trade": "NC-PM NIGHTS",
+    "shift_duration_hours": 12,
+    "monday": true,
+    "tuesday": true,
+    "wednesday": true,
+    "thursday": true,
+    "friday": true,
+    "saturday": true,
+    "sunday": true,
+    "technicians_per_crew": 2
+  },
+  {
     "trade": "NC-REBUILD",
     "shift_duration_hours": 10,
     "monday": true,
@@ -55,42 +91,6 @@
     "wednesday": true,
     "thursday": true,
     "friday": true,
-    "saturday": false,
-    "sunday": false,
-    "technicians_per_crew": 2
-  },
-  {
-    "trade": "NC-LUBRICATOR",
-    "shift_duration_hours": 8,
-    "monday": true,
-    "tuesday": true,
-    "wednesday": true,
-    "thursday": true,
-    "friday": true,
-    "saturday": false,
-    "sunday": false,
-    "technicians_per_crew": 1
-  },
-  {
-    "trade": "NC-EQUIPMENT",
-    "shift_duration_hours": 8,
-    "monday": true,
-    "tuesday": true,
-    "wednesday": true,
-    "thursday": true,
-    "friday": true,
-    "saturday": false,
-    "sunday": false,
-    "technicians_per_crew": 1
-  },
-  {
-    "trade": "NC-E/I PM",
-    "shift_duration_hours": 10,
-    "monday": true,
-    "tuesday": true,
-    "wednesday": true,
-    "thursday": true,
-    "friday": false,
     "saturday": false,
     "sunday": false,
     "technicians_per_crew": 2

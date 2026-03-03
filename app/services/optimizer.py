@@ -122,7 +122,13 @@ def optimize_schedule(
                                    type_as_int * objective_gains["type"]
                                )
                                )
-    # Objective 2: balance load across shifts
+    # Objective 2: balance load across shifts. manpower available^2 - manpower used^2 for each crew
+    #
+    # example: 6 hours to schedule, 2 days
+    # Monday: 3 Tuesday: 3, 3^2+3^2 = 18 (balanced) vs 4^2+2^2 = 20 (unbalanced)
+    # objective is maximizing, so take as difference from manpower available, 4 hrs/day x 2 days
+    # 32-18=14 > 32-20=12
+
     for crew in shifts:
         manhours_per_shift = crew.technicians_per_crew*crew.shift_duration_hours
         sq_manhours_per_shift = manhours_per_shift**2

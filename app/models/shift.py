@@ -17,6 +17,7 @@ class Shift:
     saturday: bool = False
     sunday: bool = False
     technicians_per_crew: int = 1  # Number of technicians in this crew
+    color: str = ""  # Optional hex color for this trade/resource
 
     def to_dict(self) -> Dict:
         """Convert shift to dictionary for JSON serialization."""

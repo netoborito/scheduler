@@ -56,9 +56,38 @@ async def api_optimize(
     print("bytes read:", len(backlog))
     start_date = get_next_monday()
     work_orders = parse_backlog_from_excel(backlog, start_date=start_date)
-    schedule = optimize_schedule(
-        work_orders=work_orders, start_date=start_date)
-    return {"schedule": schedule.to_api_payload()}
+    print("api_optimize: work_orders", len(work_orders))
+    schedule = optimize_schedule(work_orders=work_orders, start_date=start_date)
+    print("api_optimize: assignments", len(schedule.assignments))
+
+    # Build shift -> color map from configured shifts (if colors are set)
+    shifts = get_all_shifts()
+    shift_colors = {
+        s.trade: getattr(s, "color", "") for s in shifts if getattr(s, "color", "")
+    }
+
+    return {
+        "schedule": schedule.to_api_payload(),
+        "work_orders": [
+            {
+                "id": wo.id,
+                "description": wo.description,
+                "duration_hours": wo.duration_hours,
+                "equipment": wo.equipment,
+                "priority": wo.priority,
+                "schedule_date": wo.schedule_date.isoformat()
+                if getattr(wo, "schedule_date", None)
+                else None,
+                "trade": wo.trade,
+                "type": wo.type,
+                "safety": wo.safety,
+                "age_days": wo.age_days,
+                "num_people": getattr(wo, "num_people", 1),
+            }
+            for wo in work_orders
+        ],
+        "shift_colors": shift_colors,
+    }
 
 
 @app.post("/api/optimize/xlsx")
@@ -121,6 +150,7 @@ async def api_create_shift(
     saturday: bool = Form(False),
     sunday: bool = Form(False),
     technicians_per_crew: int = Form(1),
+    color: str = Form(""),
 ) -> dict:
     """Create a new shift."""
     shift = Shift(
@@ -134,6 +164,7 @@ async def api_create_shift(
         saturday=saturday,
         sunday=sunday,
         technicians_per_crew=technicians_per_crew,
+        color=color,
     )
     try:
         add_shift(shift)
@@ -154,6 +185,7 @@ async def api_update_shift(
     saturday: bool = Form(False),
     sunday: bool = Form(False),
     technicians_per_crew: int = Form(1),
+    color: str = Form(""),
 ) -> dict:
     """Update an existing shift."""
     updated_shift = Shift(
@@ -167,6 +199,7 @@ async def api_update_shift(
         saturday=saturday,
         sunday=sunday,
         technicians_per_crew=technicians_per_crew,
+        color=color,
     )
     try:
         update_shift(trade, updated_shift)

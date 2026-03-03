@@ -1,0 +1,228 @@
+body {
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  margin: 0;
+  padding: 0;
+  background: #0f172a;
+  color: #e5e7eb;
+}
+
+.page {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 24px;
+}
+
+h1 {
+  margin-bottom: 8px;
+}
+
+.card {
+  background: #020617;
+  border-radius: 12px;
+  padding: 16px 20px;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.6);
+  margin-bottom: 20px;
+  border: 1px solid #1e293b;
+}
+
+.form-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+label {
+  font-size: 0.9rem;
+  color: #cbd5f5;
+}
+
+input[type="file"],
+input[type="number"] {
+  background: #020617;
+  border-radius: 999px;
+  border: 1px solid #1f2937;
+  padding: 6px 12px;
+  color: #e5e7eb;
+  font-size: 0.9rem;
+}
+
+button {
+  border-radius: 999px;
+  border: none;
+  padding: 8px 16px;
+  font-size: 0.9rem;
+  cursor: pointer;
+  background: linear-gradient(135deg, #22c55e, #16a34a);
+  color: white;
+  font-weight: 600;
+}
+
+button.secondary {
+  background: transparent;
+  border: 1px solid #4b5563;
+}
+
+#calendar {
+  margin-top: 10px;
+  background: #020617;
+  border-radius: 12px;
+  padding: 10px;
+}
+
+.status {
+  font-size: 0.85rem;
+  color: #9ca3af;
+  margin-top: 8px;
+}
+
+.two-column {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin-top: 12px;
+}
+
+.stacked-panels {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin-top: 12px;
+  width: 100%;
+}
+
+.panel {
+  border-radius: 8px;
+  border: 1px solid #1e293b;
+  padding: 10px;
+  background: #020617;
+  max-height: 420px;
+  overflow-y: auto;
+  font-size: 0.85rem;
+}
+
+.panel h3 {
+  margin-top: 0;
+  margin-bottom: 6px;
+  font-size: 0.9rem;
+}
+
+.panel ul {
+  list-style: none;
+  padding-left: 0;
+  margin: 0;
+}
+
+.panel li {
+  padding: 4px 0;
+  border-bottom: 1px solid #1e293b;
+}
+
+.panel li:last-child {
+  border-bottom: none;
+}
+
+.panel-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.panel-table th,
+.panel-table td {
+  padding: 4px 6px;
+  border-bottom: 1px solid #1e293b;
+  text-align: left;
+}
+
+.panel-table th {
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 0.8rem;
+}
+
+/* Keep work order text neatly inside calendar events */
+#calendar .fc-daygrid-event-harness,
+#calendar .fc-daygrid-event {
+  overflow: hidden;
+}
+
+#calendar .wo-event {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  font-size: 0.7rem;
+  line-height: 1.1;
+  overflow: hidden;
+  padding-right: 18px; /* space for type badge */
+}
+
+#calendar .wo-event > div {
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.wo-type-badge {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  padding: 1px 3px;
+  border-radius: 3px;
+  font-size: 0.55rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  background: rgba(15, 23, 42, 0.9);
+  color: #e5e7eb;
+}
+
+.wo-type-badge.type-pm {
+  background: rgba(22, 163, 74, 0.9);
+  color: #f9fafb;
+}
+
+.wo-type-badge.type-p {
+  background: rgba(37, 99, 235, 0.9);
+  color: #f9fafb;
+}
+
+.wo-type-badge.type-pi {
+  background: rgba(79, 70, 229, 0.9);
+  color: #f9fafb;
+}
+
+.wo-type-badge.type-c {
+  background: rgba(148, 163, 184, 0.9);
+  color: #0f172a;
+}
+
+.wo-type-badge.type-ehs {
+  background: rgba(15, 23, 42, 0.9);
+  color: #f97373;
+}
+
+.wo-type-badge.type-safety {
+  background: #b91c1c;
+  color: #f9fafb;
+  border: 1px solid #f9fafb;
+}
+
+#calendar .fc-daygrid-day {
+  position: relative;
+}
+
+/* Add extra space at bottom of each day so man-hours badge sits below events */
+#calendar .fc-daygrid-day-frame {
+  padding-bottom: 22px;
+}
+
+.man-hours-badge {
+  position: absolute;
+  bottom: 4px;
+  left: 4px;
+  right: 4px;
+  font-size: 0.7rem;
+  color: #94a3b8;
+  font-weight: 500;
+  margin: 0;
+  text-align: left;
+}
+

@@ -189,6 +189,35 @@
       .nav-link:hover {
         text-decoration: underline;
       }
+
+      .color-palette {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-top: 8px;
+      }
+
+      .color-swatch {
+        width: 24px;
+        height: 24px;
+        border-radius: 6px;
+        border: 2px solid transparent;
+        cursor: pointer;
+      }
+
+      .color-swatch.selected {
+        border-color: #e5e7eb;
+        box-shadow: 0 0 0 1px #e5e7eb;
+      }
+
+      .color-swatch.auto {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 0.6rem;
+        color: #e5e7eb;
+        background: #1f2937;
+      }
     </style>
   </head>
   <body>
@@ -272,6 +301,62 @@
             />
           </div>
 
+          <div class="form-group">
+            <label for="color">Color (optional)</label>
+            <input type="hidden" id="color" name="color" />
+            <div class="color-palette" id="color-palette">
+              <div
+                class="color-swatch auto selected"
+                data-color=""
+                title="Auto"
+              >
+                A
+              </div>
+              <div
+                class="color-swatch"
+                data-color="#22c55e"
+                style="background:#22c55e"
+                title="Green"
+              ></div>
+              <div
+                class="color-swatch"
+                data-color="#3b82f6"
+                style="background:#3b82f6"
+                title="Blue"
+              ></div>
+              <div
+                class="color-swatch"
+                data-color="#a855f7"
+                style="background:#a855f7"
+                title="Purple"
+              ></div>
+              <div
+                class="color-swatch"
+                data-color="#ec4899"
+                style="background:#ec4899"
+                title="Pink"
+              ></div>
+              <div
+                class="color-swatch"
+                data-color="#f97316"
+                style="background:#f97316"
+                title="Orange"
+              ></div>
+              <div
+                class="color-swatch"
+                data-color="#eab308"
+                style="background:#eab308"
+                title="Yellow"
+              ></div>
+              <div
+                class="color-swatch"
+                data-color="#06b6d4"
+                style="background:#06b6d4"
+                title="Cyan"
+              ></div>
+            </div>
+          </div>
+
           <button type="submit" class="primary" id="submit-btn">Create Shift</button>
           <button type="button" class="secondary" id="cancel-edit-btn" style="display: none">
             Cancel Editt
@@ -344,6 +429,17 @@
                     <span>${shift.technicians_per_crew} technician${shift.technicians_per_crew !== 1 ? 's' : ''}</span>
                   </div>
                   <div class="shift-detail">
+                    <span class="shift-detail-label">Color:</span>
+                    <span>
+                      ${shift.color || "(auto)"}
+                      ${
+                        shift.color
+                          ? `<span style="display:inline-block;width:12px;height:12px;border-radius:3px;background:${shift.color};margin-left:6px;border:1px solid #1e293b;"></span>`
+                          : ""
+                      }
+                    </span>
+                  </div>
+                  <div class="shift-detail">
                     <span class="shift-detail-label">Active Days:</span>
                     <div class="days-list">
                       ${days.map((day) => `<span class="day-badge">${day}</span>`).join("")}
@@ -367,6 +463,16 @@
           document.getElementById("trade").disabled = true;
           document.getElementById("shift_duration_hours").value = shift.shift_duration_hours;
           document.getElementById("technicians_per_crew").value = shift.technicians_per_crew;
+          document.getElementById("color").value = shift.color || "";
+          const palette = document.getElementById("color-palette");
+          if (palette) {
+            const swatches = palette.querySelectorAll(".color-swatch");
+            const currentColor = (shift.color || "").trim();
+            swatches.forEach((swatch) => {
+              const swatchColor = swatch.getAttribute("data-color") || "";
+              swatch.classList.toggle("selected", swatchColor === currentColor);
+            });
+          }
           document.getElementById("monday").checked = shift.monday;
           document.getElementById("tuesday").checked = shift.tuesday;
           document.getElementById("wednesday").checked = shift.wednesday;
@@ -435,6 +541,7 @@
           saturday: formData.get("saturday") === "on",
           sunday: formData.get("sunday") === "on",
           technicians_per_crew: parseInt(formData.get("technicians_per_crew")),
+          color: (formData.get("color") || "").trim(),
         };
 
         // Check at least one day is selected
@@ -492,6 +599,22 @@
       });
 
       document.getElementById("cancel-edit-btn").addEventListener("click", cancelEdit);
+
+      // Color palette click handling
+      (function initColorPalette() {
+        const palette = document.getElementById("color-palette");
+        const colorInput = document.getElementById("color");
+        if (!palette || !colorInput) return;
+        palette.addEventListener("click", (e) => {
+          const swatch = e.target.closest(".color-swatch");
+          if (!swatch) return;
+          const value = swatch.getAttribute("data-color") || "";
+          colorInput.value = value;
+          palette.querySelectorAll(".color-swatch").forEach((el) => {
+            el.classList.toggle("selected", el === swatch);
+          });
+        });
+      })();
 
       function showStatus(message, type = "") {
         const statusEl = document.getElementById("status");
