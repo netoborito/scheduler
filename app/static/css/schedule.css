@@ -139,6 +139,71 @@ button.secondary {
   font-weight: 600;
   font-size: 0.8rem;
 }
+/* Column filters inside table header */
+.panel-table thead tr.unscheduled-filter-row th {
+  cursor: default;
+  padding-top: 2px;
+  padding-bottom: 4px;
+}
+
+.panel-table thead tr.unscheduled-filter-row input[type="text"] {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 2px 4px;
+  border-radius: 4px;
+  border: 1px solid #1e293b;
+  background: #020617;
+  color: #e5e7eb;
+  font-size: 0.75rem;
+}
+
+/* Unscheduled table: column widths (Date, WO, Description, Type, People, Priority, Duration, Trade) */
+.unscheduled-table {
+  table-layout: fixed;
+}
+.unscheduled-table th:nth-child(1),
+.unscheduled-table td:nth-child(1) {
+  width: 7%;
+  min-width: 4.5em;
+}
+.unscheduled-table th:nth-child(2),
+.unscheduled-table td:nth-child(2) {
+  width: 6%;
+  min-width: 3em;
+}
+.unscheduled-table th:nth-child(3),
+.unscheduled-table td:nth-child(3) {
+  width: 28%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 0;
+}
+.unscheduled-table th:nth-child(4),
+.unscheduled-table td:nth-child(4) {
+  width: 12%;
+}
+.unscheduled-table th:nth-child(5),
+.unscheduled-table td:nth-child(5) {
+  width: 6%;
+  min-width: 3em;
+  text-align: center;
+}
+.unscheduled-table th:nth-child(6),
+.unscheduled-table td:nth-child(6) {
+  width: 6%;
+  min-width: 3em;
+  text-align: center;
+}
+.unscheduled-table th:nth-child(7),
+.unscheduled-table td:nth-child(7) {
+  width: 6%;
+  min-width: 3em;
+  text-align: center;
+}
+.unscheduled-table th:nth-child(8),
+.unscheduled-table td:nth-child(8) {
+  width: 12%;
+}
 
 /* Keep work order text neatly inside calendar events */
 #calendar .fc-daygrid-event-harness,
@@ -153,10 +218,11 @@ button.secondary {
   font-size: 0.7rem;
   line-height: 1.1;
   overflow: hidden;
-  padding-right: 18px; /* space for type badge */
+  padding-right: 18px;
+  /* space for type badge */
 }
 
-#calendar .wo-event > div {
+#calendar .wo-event>div {
   overflow: hidden;
   white-space: nowrap;
 }
@@ -200,9 +266,46 @@ button.secondary {
 }
 
 .wo-type-badge.type-safety {
-  background: #b91c1c;
-  color: #f9fafb;
-  border: 1px solid #f9fafb;
+  background: #ffffff;
+  color: #b91c1c;
+  border: 1px solid #b91c1c;
+}
+
+/* Calendar column headers: dark background, light text for readability */
+#calendar .fc-col-header-cell {
+  background: #0f172a !important;
+  border-color: #1e293b !important;
+}
+
+#calendar .fc-col-header-cell-cushion {
+  color: #e2e8f0 !important;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  font-size: 0.75rem;
+}
+
+#calendar .fc-daygrid-day-number {
+  color: #e2e8f0 !important;
+  font-weight: 600;
+}
+
+#calendar .fc-scrollgrid {
+  border-color: #1e293b !important;
+}
+
+#calendar .fc-daygrid-day {
+  border-color: #1e293b !important;
+}
+
+#calendar .fc-day-today .fc-col-header-cell-cushion,
+#calendar .fc-day-today .fc-daygrid-day-number {
+  color: #f97316 !important;
+}
+
+/* Hide any remaining top-right toolbar chunk (e.g., stray Week button) */
+#calendar .fc-toolbar-chunk:last-child {
+  display: none;
 }
 
 #calendar .fc-daygrid-day {
@@ -226,3 +329,6 @@ button.secondary {
   text-align: left;
 }
 
+.man-hours-badge.man-hours-over {
+  color: #f87171;
+}

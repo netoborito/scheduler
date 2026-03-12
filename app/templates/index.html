@@ -36,7 +36,8 @@
           </div>
         </div>
         <p style="font-size: 0.85rem; color: #9ca3af; margin-top: 8px; margin-bottom: 0">
-          Schedule horizon: 7 days starting from next Monday at 7:00 AM
+          Schedule horizon: 7 days starting from
+          {{ default_start_date_display }} at 7:00 AM
         </p>
       </form>
       <div class="form-row" style="margin-top: 12px; margin-bottom: 0">
@@ -53,7 +54,7 @@
 
     <div class="card">
       <h2 style="margin-top: 0">Schedule Calendar</h2>
-      <div id="calendar"></div>
+      <div id="calendar" data-default-start="{{ default_start_date }}"></div>
     </div>
 
     <div class="card">
@@ -78,15 +79,27 @@
         </div>
         <div class="panel">
           <h3>Unscheduled Work Orders</h3>
-          <table class="panel-table">
+          <table class="panel-table unscheduled-table">
             <thead>
               <tr>
                 <th data-table="unscheduled" data-key="date">Date</th>
                 <th data-table="unscheduled" data-key="id">WO</th>
                 <th data-table="unscheduled" data-key="description">Description</th>
+                <th data-table="unscheduled" data-key="type">Type</th>
+                <th data-table="unscheduled" data-key="people">People</th>
                 <th data-table="unscheduled" data-key="priority">Priority</th>
                 <th data-table="unscheduled" data-key="duration">Duration (h)</th>
                 <th data-table="unscheduled" data-key="trade">Trade</th>
+              </tr>
+              <tr class="unscheduled-filter-row">
+                <th><input id="unsched-filter-date" type="text" placeholder="mm/dd/yy" /></th>
+                <th><input id="unsched-filter-id" type="text" placeholder="WO" /></th>
+                <th><input id="unsched-filter-description" type="text" placeholder="Description" /></th>
+                <th><input id="unsched-filter-type" type="text" placeholder="Type" /></th>
+                <th><input id="unsched-filter-people" type="text" placeholder="People" /></th>
+                <th><input id="unsched-filter-priority" type="text" placeholder="Priority" /></th>
+                <th><input id="unsched-filter-duration" type="text" placeholder="Duration" /></th>
+                <th><input id="unsched-filter-trade" type="text" placeholder="Trade" /></th>
               </tr>
             </thead>
             <tbody id="unscheduled-tbody"></tbody>
@@ -96,6 +109,12 @@
     </div>
   </div>
 
+  <script src="{{ request.url_for('static', path='js/schedule/schedule-state.js') }}"></script>
+  <script src="{{ request.url_for('static', path='js/schedule/schedule-utils.js') }}"></script>
+  <script src="{{ request.url_for('static', path='js/schedule/schedule-shifts.js') }}"></script>
+  <script src="{{ request.url_for('static', path='js/schedule/schedule-calendar.js') }}"></script>
+  <script src="{{ request.url_for('static', path='js/schedule/schedule-tables.js') }}"></script>
+  <script src="{{ request.url_for('static', path='js/schedule/schedule-api.js') }}"></script>
   <script src="{{ request.url_for('static', path='js/schedule-page.js') }}"></script>
 </body>
 

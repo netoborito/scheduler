@@ -147,12 +147,17 @@ def parse_backlog_from_excel(
         wo_id = str(row.get("Work Order", ""))
         description = str(row.get("Description", ""))
 
-        # Convert duration to int (no fractional hours)
+        # Duration in hours, allow fractional (e.g., 0.5 h)
         duration_raw = row.get("Estimated Hs", 0.0)
-        duration_hours = (
-            1 if duration_raw <= 1 else int(
-                round(float(duration_raw))) if not pd.isna(duration_raw) else 1
-        )
+        if pd.isna(duration_raw):
+            duration_hours = 0.5
+        else:
+            try:
+                val = float(duration_raw)
+            except (TypeError, ValueError):
+                val = 0.5
+            # Enforce a small positive minimum so very small/zero values don't disappear
+            duration_hours = max(val, 0.5)
 
         trade_raw = row.get("Trade", "")
         trade = str(trade_raw).strip() if not pd.isna(trade_raw) else ""
@@ -296,16 +301,23 @@ def get_backlog_from_json() -> List[WorkOrder]:
     return work_orders
 
 
-def build_schedule_workbook(schedule: Schedule) -> Workbook:
-    from datetime import timedelta
-
+def build_schedule_workbook(
+    schedule: Schedule,
+    work_orders: Optional[List[WorkOrder]] = None,
+) -> Workbook:
     wb = Workbook()
     ws = wb.active
     ws.title = "Schedule"
 
+    wo_by_id = {}
+    if work_orders:
+        for wo in work_orders:
+            wo_by_id[str(wo.id)] = wo
+
     ws.append(
         [
             "work_order_id",
+            "resource_id",
             "num_people",
             "equipment",
             "dept",
@@ -316,12 +328,14 @@ def build_schedule_workbook(schedule: Schedule) -> Workbook:
 
     for a in schedule.assignments:
         scheduled_date = schedule.start_date + timedelta(days=a.day_offset)
+        wo = wo_by_id.get(str(a.work_order_id))
         ws.append(
             [
                 a.work_order_id,
-                a.num_people,
-                a.equipment,
-                a.dept,
+                a.resource_id,
+                getattr(wo, "num_people", 1) if wo else 1,
+                (wo.equipment or "") if wo else "",
+                (wo.dept or "") if wo else "",
                 scheduled_date,
                 a.day_offset,
             ]

@@ -5,6 +5,9 @@ from fastapi.templating import Jinja2Templates
 from fastapi import Request
 from pathlib import Path
 from io import BytesIO
+from datetime import date
+from typing import List
+import json
 
 from .services.excel_io import parse_backlog_from_excel, build_schedule_workbook
 from .services.optimizer import optimize_schedule
@@ -17,6 +20,7 @@ from .services.shift_service import (
     get_shift_by_trade,
     update_shift,
 )
+from pydantic import BaseModel
 
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -37,10 +41,13 @@ templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
 
 @app.get("/", response_class=HTMLResponse)
 async def index(request: Request) -> HTMLResponse:
+    default_start = get_next_monday()
     return templates.TemplateResponse(
         "index.html",
         {
             "request": request,
+            "default_start_date": default_start.isoformat(),
+            "default_start_date_display": default_start.strftime("%m/%d/%Y"),
         },
     )
 
@@ -57,14 +64,30 @@ async def api_optimize(
     start_date = get_next_monday()
     work_orders = parse_backlog_from_excel(backlog, start_date=start_date)
     print("api_optimize: work_orders", len(work_orders))
-    schedule = optimize_schedule(work_orders=work_orders, start_date=start_date)
+    schedule = optimize_schedule(
+        work_orders=work_orders, start_date=start_date)
     print("api_optimize: assignments", len(schedule.assignments))
 
-    # Build shift -> color map from configured shifts (if colors are set)
+    # Build shift -> color map and availability from configured shifts
     shifts = get_all_shifts()
     shift_colors = {
         s.trade: getattr(s, "color", "") for s in shifts if getattr(s, "color", "")
     }
+    shift_availability = [
+        {
+            "trade": s.trade,
+            "shift_duration_hours": s.shift_duration_hours,
+            "technicians_per_crew": getattr(s, "technicians_per_crew", 1),
+            "monday": s.monday,
+            "tuesday": s.tuesday,
+            "wednesday": s.wednesday,
+            "thursday": s.thursday,
+            "friday": s.friday,
+            "saturday": s.saturday,
+            "sunday": s.sunday,
+        }
+        for s in shifts
+    ]
 
     return {
         "schedule": schedule.to_api_payload(),
@@ -87,6 +110,7 @@ async def api_optimize(
             for wo in work_orders
         ],
         "shift_colors": shift_colors,
+        "shift_availability": shift_availability,
     }
 
 
@@ -101,7 +125,7 @@ async def api_optimize_xlsx(
     schedule = optimize_schedule(
         work_orders=work_orders, start_date=start_date)
 
-    wb = build_schedule_workbook(schedule)
+    wb = build_schedule_workbook(schedule, work_orders=work_orders)
     buffer = BytesIO()
     wb.save(buffer)
     buffer.seek(0)
@@ -111,6 +135,30 @@ async def api_optimize_xlsx(
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         headers={"Content-Disposition": 'attachment; filename="schedule.xlsx"'},
     )
+
+
+class ScheduleHintItem(BaseModel):
+    work_order_id: str
+    schedule_date: date
+    trade: str
+    hint: int
+
+
+@app.post("/api/schedule/hints")
+async def api_save_schedule_hints(items: List[ScheduleHintItem]) -> dict:
+    """Persist UI-modified schedule hints for optimizer debugging/analysis."""
+    debug_dir = BASE_DIR.parent / "data" / "debug"
+    debug_dir.mkdir(parents=True, exist_ok=True)
+    path = debug_dir / "schedule_hints.json"
+
+    payload = [item.model_dump() for item in items]
+    # Ensure dates are serialized as ISO strings
+    for entry in payload:
+        if isinstance(entry.get("schedule_date"), date):
+            entry["schedule_date"] = entry["schedule_date"].isoformat()
+
+    path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+    return {"status": "ok", "count": len(payload), "path": str(path)}
 
 
 @app.get("/shifts", response_class=HTMLResponse)

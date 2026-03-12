@@ -9,7 +9,7 @@ from numpy import int32
 class WorkOrder:
     id: int
     description: str
-    duration_hours: int  # Integer hours only, no fractions
+    duration_hours: float  # allow .5 hour increments
     priority: int
     schedule_date: date
     trade: str  # Required trade/resource type for this work order
