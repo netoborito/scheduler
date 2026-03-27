@@ -374,8 +374,10 @@
       </div>
     </div>
 
+    <script src="{{ request.url_for('static', path='js/api/endpoints.js') }}"></script>
     <script>
       let editingTrade = null;
+      const Endpoints = window.Endpoints || {};
 
       // Load shifts on page load
       document.addEventListener("DOMContentLoaded", () => {
@@ -384,7 +386,8 @@
 
       async function loadShifts() {
         try {
-          const response = await fetch("/api/shifts");
+          const url = (Endpoints.shifts && Endpoints.shifts.list) || "/api/shifts";
+          const response = await fetch(url);
           const data = await response.json();
           displayShifts(data.shifts);
         } catch (error) {
@@ -454,7 +457,11 @@
 
       async function editShift(trade) {
         try {
-          const response = await fetch(`/api/shifts/${encodeURIComponent(trade)}`);
+          const url =
+            (Endpoints.shifts && Endpoints.shifts.byTrade
+              ? Endpoints.shifts.byTrade(trade)
+              : `/api/shifts/${encodeURIComponent(trade)}`);
+          const response = await fetch(url);
           const data = await response.json();
           const shift = data.shift;
 
@@ -507,7 +514,11 @@
         }
 
         try {
-          const response = await fetch(`/api/shifts/${encodeURIComponent(trade)}`, {
+          const url =
+            (Endpoints.shifts && Endpoints.shifts.byTrade
+              ? Endpoints.shifts.byTrade(trade)
+              : `/api/shifts/${encodeURIComponent(trade)}`);
+          const response = await fetch(url, {
             method: "DELETE",
           });
 
@@ -571,11 +582,15 @@
             }
           });
 
-          let url = "/api/shifts";
+          let url =
+            (Endpoints.shifts && Endpoints.shifts.create) || "/api/shifts";
           let method = "POST";
 
           if (editingTrade) {
-            url = `/api/shifts/${encodeURIComponent(editingTrade)}`;
+            url =
+              (Endpoints.shifts && Endpoints.shifts.update
+                ? Endpoints.shifts.update(editingTrade)
+                : `/api/shifts/${encodeURIComponent(editingTrade)}`);
             method = "PUT";
           }
 

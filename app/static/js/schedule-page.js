@@ -6,8 +6,11 @@
   "use strict";
   const SchedulePage = window.SchedulePage;
   const state = SchedulePage.state;
+  const Endpoints = window.Endpoints || {};
 
+  // Initialize the form handlers
   function initFormHandlers() {
+    // optimize form & submit handler
     const form = document.getElementById("optimize-form");
     if (form) {
       form.addEventListener("submit", async (event) => {
@@ -19,15 +22,24 @@
         }
         const fd = new FormData();
         fd.append("backlog_file", fileInput.files[0]);
+        // If there is a buildHintsPayload function, build the hints payload
         if (SchedulePage.buildHintsPayload) {
+          // Build the hints payload
           const hints = SchedulePage.buildHintsPayload();
+          // If the hints payload is not empty, append the hints to the form data
           if (hints && Object.keys(hints).length > 0) {
             fd.append("hints_json", JSON.stringify(hints));
           }
         }
+        // #region agent log
+        fetch('http://127.0.0.1:7640/ingest/7a3dd2d9-a345-4784-8f89-4cb4e0b15ff3',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'f98a82'},body:JSON.stringify({sessionId:'f98a82',runId:'pre-fix',hypothesisId:'H1-H3',location:'schedule-page.js:33',message:'submit optimize FormData summary',data:{keys:Array.from(fd.keys()),hasBacklog:fd.has('backlog_file'),hasHintsJson:fd.has('hints_json'),hasScheduleHintsJson:fd.has('schedule_hints_json')},timestamp:Date.now()})}).catch(()=>{});
+        // #endregion
         try {
+          // Set the status to optimizing schedule
           SchedulePage.setStatus("Optimizing schedule...");
+          // Post the optimize request (backend python function)
           const data = await SchedulePage.postOptimize(fd);
+          // Update state with the latest schedule and work orders
           state.latestSchedule = data.schedule || null;
           state.latestWorkOrders = data.work_orders || [];
           state.shiftColors = data.shift_colors || {};
@@ -70,22 +82,21 @@
     const downloadBtn = document.getElementById("download-xlsx-btn");
     if (downloadBtn) {
       downloadBtn.addEventListener("click", async () => {
-        const fileInput = document.getElementById("backlog");
-        if (!fileInput || !fileInput.files.length) {
-          alert("Please choose a backlog .xlsx file first.");
+        if (!state.latestSchedule || !state.latestWorkOrders || !state.latestWorkOrders.length) {
+          alert("Generate a schedule first before downloading .xlsx.");
           return;
-        }
-        const fd = new FormData();
-        fd.append("backlog_file", fileInput.files[0]);
-        if (SchedulePage.buildHintsPayload) {
-          const hints = SchedulePage.buildHintsPayload();
-          if (hints && Object.keys(hints).length > 0) {
-            fd.append("hints_json", JSON.stringify(hints));
-          }
         }
         try {
           SchedulePage.setStatus("Generating schedule .xlsx...");
-          const response = await fetch("/api/optimize/xlsx", { method: "POST", body: fd });
+          const optimizeXlsxUrl = Endpoints.optimizeXlsx || "/api/optimize/xlsx";
+          const response = await fetch(optimizeXlsxUrl, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              latestSchedule: state.latestSchedule,
+              latestWorkOrders: state.latestWorkOrders,
+            }),
+          });
           if (!response.ok) throw new Error("Failed to generate .xlsx");
           const blob = await response.blob();
           const url = window.URL.createObjectURL(blob);

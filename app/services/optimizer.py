@@ -40,8 +40,8 @@ class ScheduleOptimizer:
         start_date: Optional[date] = None,
         horizon_days: int = 7,
         objective_gains: Optional[Dict[str, float]] = None,
-        # {wo_id: (date, trade, add_or_remove)}
-        hints: Optional[Dict[str, Tuple[date, str, bool]]] = None,
+        # {wo_id: (day, trade, add_or_remove)}
+        hints: Optional[Dict[str, Tuple[str, str, bool]]] = None,
 
     ) -> None:
         self.work_orders = work_orders
@@ -215,8 +215,8 @@ class ScheduleOptimizer:
         return maximize_terms
 
     def _is_hint(self, wo_id: str, trade: str, day: str) -> int:
-        if wo_id in self.hints:
-            if self.hints(wo_id)[0] == day and self.hints(wo_id)[1] == trade and self.hints(wo_id)[2] == True:
+        if wo_id in self.hints.keys():
+            if self.hints[wo_id][0] == day and self.hints[wo_id][1] == trade and self.hints[wo_id][2] == True:
                 return 1
             else:
                 return -1

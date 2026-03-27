@@ -1,79 +1,45 @@
-body {
-  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  margin: 0;
-  padding: 0;
-  background: #0f172a;
-  color: #e5e7eb;
+:root {
+  --font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --bg-page: #0f172a;
+  --bg-surface: #020617;
+  --text-primary: #e5e7eb;
+  --text-secondary: #9ca3af;
+  --text-label: #cbd5f5;
+  --text-calendar: #e2e8f0;
+  --border-muted: #1e293b;
+  --border-input: #1f2937;
+  --radius-lg: 12px;
+  --radius-md: 8px;
+  --radius-pill: 999px;
 }
 
-.page {
-  max-width: 1200px;
-  margin: 0 auto;
-  padding: 24px;
+/* Base */
+body {
+  font-family: var(--font-family);
+  margin: 0;
+  padding: 0;
+  background: var(--bg-page);
+  color: var(--text-primary);
 }
 
 h1 {
   margin-bottom: 8px;
 }
 
+/* Layout */
+.page {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 24px;
+}
+
 .card {
-  background: #020617;
-  border-radius: 12px;
+  background: var(--bg-surface);
+  border-radius: var(--radius-lg);
   padding: 16px 20px;
   box-shadow: 0 20px 40px rgba(0, 0, 0, 0.6);
   margin-bottom: 20px;
-  border: 1px solid #1e293b;
-}
-
-.form-row {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  flex-wrap: wrap;
-}
-
-label {
-  font-size: 0.9rem;
-  color: #cbd5f5;
-}
-
-input[type="file"],
-input[type="number"] {
-  background: #020617;
-  border-radius: 999px;
-  border: 1px solid #1f2937;
-  padding: 6px 12px;
-  color: #e5e7eb;
-  font-size: 0.9rem;
-}
-
-button {
-  border-radius: 999px;
-  border: none;
-  padding: 8px 16px;
-  font-size: 0.9rem;
-  cursor: pointer;
-  background: linear-gradient(135deg, #22c55e, #16a34a);
-  color: white;
-  font-weight: 600;
-}
-
-button.secondary {
-  background: transparent;
-  border: 1px solid #4b5563;
-}
-
-#calendar {
-  margin-top: 10px;
-  background: #020617;
-  border-radius: 12px;
-  padding: 10px;
-}
-
-.status {
-  font-size: 0.85rem;
-  color: #9ca3af;
-  margin-top: 8px;
+  border: 1px solid var(--border-muted);
 }
 
 .two-column {
@@ -91,11 +57,57 @@ button.secondary {
   width: 100%;
 }
 
+/* Form controls */
+.form-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+label {
+  font-size: 0.9rem;
+  color: var(--text-label);
+}
+
+input[type="file"],
+input[type="number"] {
+  background: var(--bg-surface);
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--border-input);
+  padding: 6px 12px;
+  color: var(--text-primary);
+  font-size: 0.9rem;
+}
+
+button {
+  border-radius: var(--radius-pill);
+  border: none;
+  padding: 8px 16px;
+  font-size: 0.9rem;
+  cursor: pointer;
+  background: linear-gradient(135deg, #22c55e, #16a34a);
+  color: #ffffff;
+  font-weight: 600;
+}
+
+button.secondary {
+  background: transparent;
+  border: 1px solid #4b5563;
+}
+
+.status {
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  margin-top: 8px;
+}
+
+/* Panels and tables */
 .panel {
-  border-radius: 8px;
-  border: 1px solid #1e293b;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-muted);
   padding: 10px;
-  background: #020617;
+  background: var(--bg-surface);
   max-height: 420px;
   overflow-y: auto;
   font-size: 0.85rem;
@@ -115,7 +127,7 @@ button.secondary {
 
 .panel li {
   padding: 4px 0;
-  border-bottom: 1px solid #1e293b;
+  border-bottom: 1px solid var(--border-muted);
 }
 
 .panel li:last-child {
@@ -130,7 +142,7 @@ button.secondary {
 .panel-table th,
 .panel-table td {
   padding: 4px 6px;
-  border-bottom: 1px solid #1e293b;
+  border-bottom: 1px solid var(--border-muted);
   text-align: left;
 }
 
@@ -139,7 +151,8 @@ button.secondary {
   font-weight: 600;
   font-size: 0.8rem;
 }
-/* Column filters inside table header */
+
+/* Column filters inside unscheduled table header */
 .panel-table thead tr.unscheduled-filter-row th {
   cursor: default;
   padding-top: 2px;
@@ -151,26 +164,29 @@ button.secondary {
   box-sizing: border-box;
   padding: 2px 4px;
   border-radius: 4px;
-  border: 1px solid #1e293b;
-  background: #020617;
-  color: #e5e7eb;
+  border: 1px solid var(--border-muted);
+  background: var(--bg-surface);
+  color: var(--text-primary);
   font-size: 0.75rem;
 }
 
-/* Unscheduled table: column widths (Date, WO, Description, Type, People, Priority, Duration, Trade) */
+/* Unscheduled table columns: Date, WO, Description, Type, People, Priority, Duration, Trade */
 .unscheduled-table {
   table-layout: fixed;
 }
+
 .unscheduled-table th:nth-child(1),
 .unscheduled-table td:nth-child(1) {
   width: 7%;
   min-width: 4.5em;
 }
+
 .unscheduled-table th:nth-child(2),
 .unscheduled-table td:nth-child(2) {
   width: 6%;
   min-width: 3em;
 }
+
 .unscheduled-table th:nth-child(3),
 .unscheduled-table td:nth-child(3) {
   width: 28%;
@@ -178,31 +194,34 @@ button.secondary {
   text-overflow: ellipsis;
   max-width: 0;
 }
+
 .unscheduled-table th:nth-child(4),
 .unscheduled-table td:nth-child(4) {
   width: 12%;
 }
+
 .unscheduled-table th:nth-child(5),
-.unscheduled-table td:nth-child(5) {
-  width: 6%;
-  min-width: 3em;
-  text-align: center;
-}
+.unscheduled-table td:nth-child(5),
 .unscheduled-table th:nth-child(6),
-.unscheduled-table td:nth-child(6) {
-  width: 6%;
-  min-width: 3em;
-  text-align: center;
-}
+.unscheduled-table td:nth-child(6),
 .unscheduled-table th:nth-child(7),
 .unscheduled-table td:nth-child(7) {
   width: 6%;
   min-width: 3em;
   text-align: center;
 }
+
 .unscheduled-table th:nth-child(8),
 .unscheduled-table td:nth-child(8) {
   width: 12%;
+}
+
+/* Calendar wrapper */
+#calendar {
+  margin-top: 10px;
+  background: var(--bg-surface);
+  border-radius: var(--radius-lg);
+  padding: 10px;
 }
 
 /* Keep work order text neatly inside calendar events */
@@ -218,15 +237,15 @@ button.secondary {
   font-size: 0.7rem;
   line-height: 1.1;
   overflow: hidden;
-  padding-right: 18px;
-  /* space for type badge */
+  padding-right: 18px; /* Space for type badge */
 }
 
-#calendar .wo-event>div {
+#calendar .wo-event > div {
   overflow: hidden;
   white-space: nowrap;
 }
 
+/* Work order type badge */
 .wo-type-badge {
   position: absolute;
   top: 2px;
@@ -237,7 +256,7 @@ button.secondary {
   font-weight: 600;
   text-transform: uppercase;
   background: rgba(15, 23, 42, 0.9);
-  color: #e5e7eb;
+  color: var(--text-primary);
 }
 
 .wo-type-badge.type-pm {
@@ -271,14 +290,14 @@ button.secondary {
   border: 1px solid #b91c1c;
 }
 
-/* Calendar column headers: dark background, light text for readability */
+/* FullCalendar theme adjustments */
 #calendar .fc-col-header-cell {
-  background: #0f172a !important;
-  border-color: #1e293b !important;
+  background: var(--bg-page) !important;
+  border-color: var(--border-muted) !important;
 }
 
 #calendar .fc-col-header-cell-cushion {
-  color: #e2e8f0 !important;
+  color: var(--text-calendar) !important;
   font-weight: 600;
   letter-spacing: 0.02em;
   text-transform: uppercase;
@@ -286,16 +305,17 @@ button.secondary {
 }
 
 #calendar .fc-daygrid-day-number {
-  color: #e2e8f0 !important;
+  color: var(--text-calendar) !important;
   font-weight: 600;
 }
 
 #calendar .fc-scrollgrid {
-  border-color: #1e293b !important;
+  border-color: var(--border-muted) !important;
 }
 
 #calendar .fc-daygrid-day {
-  border-color: #1e293b !important;
+  border-color: var(--border-muted) !important;
+  position: relative;
 }
 
 #calendar .fc-day-today .fc-col-header-cell-cushion,
@@ -306,10 +326,6 @@ button.secondary {
 /* Hide any remaining top-right toolbar chunk (e.g., stray Week button) */
 #calendar .fc-toolbar-chunk:last-child {
   display: none;
-}
-
-#calendar .fc-daygrid-day {
-  position: relative;
 }
 
 /* Add extra space at bottom of each day so man-hours badge sits below events */
