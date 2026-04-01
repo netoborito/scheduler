@@ -135,9 +135,8 @@ async def api_optimize(
 
 @app.post("/api/optimize/xlsx")
 async def api_optimize_xlsx(payload: dict = Body(...)) -> StreamingResponse:
-    schedule_payload = payload.get("latestSchedule") or payload.get("schedule")
-    work_orders_payload = payload.get(
-        "latestWorkOrders") or payload.get("work_orders")
+    schedule_payload = payload.get("latestSchedule")
+    work_orders_payload = payload.get("latestWorkOrders")
     if not isinstance(schedule_payload, dict) or not isinstance(work_orders_payload, list):
         raise HTTPException(
             status_code=400,

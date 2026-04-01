@@ -27,7 +27,7 @@ DEFAULT_OBJECTIVE_GAINS = {
     "safety": 1,
     "type": 1,
     "load_balance": 1,
-    "hints": 1,
+    "hints": 0,
 }
 
 
@@ -69,6 +69,7 @@ class ScheduleOptimizer:
         self._create_decision_variables()
         self._schedule_forced_work_orders()
         self._add_shift_constraints()
+        self._add_schedule_wo_once_constraint()
         self.model.Maximize(self._sum_objective_terms())
 
         solver = cp_model.CpSolver()
@@ -81,6 +82,15 @@ class ScheduleOptimizer:
             round(max(wo.duration_hours, 0.5)
                   * self.time_scale)
         ) * wo.num_people
+
+    def _add_schedule_wo_once_constraint(self) -> None:
+        for wo in self.work_orders:
+            if wo.trade in [shift.trade for shift in self.shifts]:
+                wo_by_wo = []
+                for (wo_id, trade, day), decision_variable in self.x.items():
+                    if wo_id == wo.id:
+                        wo_by_wo.append(decision_variable)
+                self.model.Add(sum(wo_by_wo) <= 1)
 
     def _get_shift_boolvars(
         self, day: str, shift: Shift
@@ -185,7 +195,7 @@ class ScheduleOptimizer:
                         var_load_sq, [var_load, var_load]
                     )
                     objective_terms.append(
-                        (sq_max_manhours_per_day - var_load_sq) * gain
+                        (var_load_sq - sq_max_manhours_per_day) * gain
                     )
         return objective_terms
 
@@ -195,9 +205,7 @@ class ScheduleOptimizer:
         gains = self.objective_gains
 
         for (wo_id, trade, day), var in self.x.items():
-            wo = wo_by_id.get(wo_id)
-            if wo is None:
-                continue
+            wo = wo_by_id[wo_id]
             type_as_int = 1 if wo.type == "Preventive maintenance" else 0
             safety_as_int = 1 if wo.safety else 0
             hint = self._is_hint(wo_id, trade, day)
@@ -209,7 +217,7 @@ class ScheduleOptimizer:
                     + (5 - wo.priority) * gains["priority"]
                     + safety_as_int * gains["safety"]
                     + type_as_int * gains["type"]
-                    + hint * gains["hints"]
+                    # + hint * gains["hints"]
                 )
             )
         return maximize_terms

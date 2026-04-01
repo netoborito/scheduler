@@ -20,7 +20,7 @@
     if (!response.ok) {
       const errText = await response.text();
       // #region agent log
-      fetch('http://127.0.0.1:7640/ingest/7a3dd2d9-a345-4784-8f89-4cb4e0b15ff3',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'f98a82'},body:JSON.stringify({sessionId:'f98a82',runId:'pre-fix',hypothesisId:'H1-H4',location:'schedule-api.js:22',message:'postOptimize non-OK response',data:{status:response.status,statusText:response.statusText,body:errText.slice(0,1000)},timestamp:Date.now()})}).catch(()=>{});
+      fetch('http://127.0.0.1:7640/ingest/7a3dd2d9-a345-4784-8f89-4cb4e0b15ff3', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': 'f98a82' }, body: JSON.stringify({ sessionId: 'f98a82', runId: 'pre-fix', hypothesisId: 'H1-H4', location: 'schedule-api.js:22', message: 'postOptimize non-OK response', data: { status: response.status, statusText: response.statusText, body: errText.slice(0, 1000) }, timestamp: Date.now() }) }).catch(() => { });
       // #endregion
       throw new Error("Optimization failed");
     }

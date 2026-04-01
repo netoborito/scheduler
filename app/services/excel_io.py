@@ -318,26 +318,40 @@ def build_schedule_workbook(
         [
             "work_order_id",
             "resource_id",
+            "description",
+            "priority",
+            "type",
+            "safety",
             "num_people",
+            "duration_hours",
+            "manhours",
             "equipment",
             "dept",
             "schedule_date",
-            "day_offset",
+            "schedule_line"
         ]
     )
 
     for a in schedule.assignments:
         scheduled_date = schedule.start_date + timedelta(days=a.day_offset)
         wo = wo_by_id.get(str(a.work_order_id))
+        schedule_line = f"{wo.id} - {wo.equipment} - {wo.description}"
+        manhours = wo.duration_hours * wo.num_people
         ws.append(
             [
-                a.work_order_id,
-                a.resource_id,
-                getattr(wo, "num_people", 1) if wo else 1,
-                (wo.equipment or "") if wo else "",
-                (wo.dept or "") if wo else "",
-                scheduled_date,
-                a.day_offset,
+                str(wo.id),
+                str(wo.trade),
+                str(wo.description),
+                str(wo.priority),
+                str(wo.type),
+                str(wo.safety),
+                str(wo.num_people),
+                str(wo.duration_hours),
+                manhours,
+                str(wo.equipment),
+                str(wo.dept),
+                scheduled_date.isoformat(),
+                schedule_line,
             ]
         )
 

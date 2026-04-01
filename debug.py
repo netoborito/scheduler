@@ -1,15 +1,7 @@
 """Debug and testing script for the Industrial Maintenance Scheduler."""
-import csv
-import os
-import sys
-from pathlib import Path
-from datetime import date, timedelta
-
-# Add the project root to the path
-sys.path.insert(0, str(Path(__file__).parent))
-
-from app.models.shift import Shift
-from app.models.domain import WorkOrder
+from app.utils.date_utils import get_next_monday
+from app.services.optimizer import optimize_schedule
+from app.services.excel_io import parse_backlog_from_excel, build_schedule_workbook
 from app.services.shift_service import (
     add_shift,
     delete_shift,
@@ -19,9 +11,16 @@ from app.services.shift_service import (
     load_shifts,
     save_shifts,
 )
-from app.services.excel_io import parse_backlog_from_excel, build_schedule_workbook
-from app.services.optimizer import optimize_schedule
-from app.utils.date_utils import get_next_monday
+from app.models.domain import WorkOrder
+from app.models.shift import Shift
+import csv
+import os
+import sys
+from pathlib import Path
+from datetime import date, timedelta
+
+# Add the project root to the path
+sys.path.insert(0, str(Path(__file__).parent))
 
 
 def print_section(title: str):
@@ -210,11 +209,13 @@ def test_optimizer():
 
     print(f"   Testing with {len(work_orders)} work orders")
     for wo in work_orders:
-        print(f"   - {wo.id}: {wo.trade}, Priority {wo.priority}, {wo.duration_hours}h")
+        print(
+            f"   - {wo.id}: {wo.trade}, Priority {wo.priority}, {wo.duration_hours}h")
 
     try:
         start_date = get_next_monday()
-        schedule = optimize_schedule(work_orders=work_orders, start_date=start_date)
+        schedule = optimize_schedule(
+            work_orders=work_orders, start_date=start_date)
 
         print(f"\n   ✓ Schedule generated")
         print(f"   Start date: {schedule.start_date}")
@@ -257,7 +258,8 @@ def test_optimizer_with_excel_backlog():
     try:
         xlsx_bytes = sample_file.read_bytes()
         start_date = get_next_monday()
-        work_orders = parse_backlog_from_excel(xlsx_bytes, start_date=start_date)
+        work_orders = parse_backlog_from_excel(
+            xlsx_bytes, start_date=start_date)
     except Exception as e:
         print(f"   ✗ Error loading/parsing Excel: {e}")
         import traceback
@@ -270,12 +272,14 @@ def test_optimizer_with_excel_backlog():
         return
 
     for wo in work_orders[:5]:
-        print(f"   - {wo.id}: {wo.trade}, priority {wo.priority}, {wo.duration_hours}h")
+        print(
+            f"   - {wo.id}: {wo.trade}, priority {wo.priority}, {wo.duration_hours}h")
     if len(work_orders) > 5:
         print(f"   ... and {len(work_orders) - 5} more")
 
     try:
-        schedule = optimize_schedule(work_orders=work_orders, start_date=start_date)
+        schedule = optimize_schedule(
+            work_orders=work_orders, start_date=start_date)
         print(f"\n   ✓ Schedule generated")
         print(f"   Start date: {schedule.start_date}")
         print(f"   Horizon: {schedule.horizon_days} days")
@@ -287,7 +291,8 @@ def test_optimizer_with_excel_backlog():
         if schedule.assignments:
             print("\n   Assignments:")
             for assignment in schedule.assignments:
-                assigned_date = schedule.start_date + timedelta(days=assignment.day_offset)
+                assigned_date = schedule.start_date + \
+                    timedelta(days=assignment.day_offset)
                 duration_h = wo_duration.get(assignment.work_order_id, 0)
                 print(
                     f"   - {assignment.work_order_id} → {assignment.resource_id} "
@@ -312,7 +317,8 @@ def test_optimizer_with_excel_backlog():
                     ]
                 )
                 for a in schedule.assignments:
-                    scheduled_date = schedule.start_date + timedelta(days=a.day_offset)
+                    scheduled_date = schedule.start_date + \
+                        timedelta(days=a.day_offset)
                     duration_h = wo_duration.get(a.work_order_id, 0)
                     description = wo_description.get(a.work_order_id, "")
                     priority = wo_priority.get(a.work_order_id, 0)
@@ -448,7 +454,8 @@ def main():
             test_excel_output()
         else:
             print(f"Unknown test: {test_name}")
-            print("Available tests: date, shift, excel, optimize, optimize-excel, output, all")
+            print(
+                "Available tests: date, shift, excel, optimize, optimize-excel, output, all")
     else:
         # Run interactive menu
         interactive_menu()
