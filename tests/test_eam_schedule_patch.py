@@ -1,15 +1,11 @@
-"""Tests for EAM schedule PATCH template merge and ``patch_eam_schedule_data``."""
+"""Tests for EAM schedule PATCH template merge helpers."""
 
 import json
 from pathlib import Path
-from unittest.mock import MagicMock, patch
 
-import httpx
 import pytest
 
-from app.config import BacklogIntegrationSettings, get_backlog_integration_settings
 from app.models.eam_schedule import EamDateTimeBlock, EamWorkOrderScheduleData
-from app.services.cloud_backlog_client import CloudBacklogClient, CloudBacklogError
 from app.services.work_order_patch_payload import (
     build_eam_patch_body,
     build_work_order_patch_body,
@@ -143,92 +139,3 @@ def test_build_eam_patch_body_includes_fixed_from_template_file():
     body = build_eam_patch_body(TEMPLATE_MIN, schedule)
     assert body["FIXED"] == "V"
     assert body["DEPEND"] == "false"
-
-
-def _client_settings(**kwargs) -> BacklogIntegrationSettings:
-    base = dict(
-        rest_url="http://127.0.0.1:9/backlog",
-        api_key="secret",
-        http_timeout_seconds=5,
-        tenant_id="T1",
-        organization="Org",
-        grid_id=1,
-        dataspy_id=1,
-        work_order_api_base_url="http://127.0.0.1:9/api",
-        eam_patch_template_path="",
-    )
-    base.update(kwargs)
-    return BacklogIntegrationSettings(**base)
-
-
-@patch("app.services.cloud_backlog_client.httpx.Client")
-def test_patch_eam_schedule_data_sends_merged_json(mock_client_cls):
-    mock_response = MagicMock(spec=httpx.Response)
-    mock_response.is_success = True
-    mock_response.json.return_value = {"ok": True}
-
-    mock_session = MagicMock()
-    mock_session.request.return_value = mock_response
-    mock_session.__enter__ = MagicMock(return_value=mock_session)
-    mock_session.__exit__ = MagicMock(return_value=False)
-    mock_client_cls.return_value = mock_session
-
-    schedule = EamWorkOrderScheduleData(createddate=_dt(day=99))
-    out = CloudBacklogClient(
-        settings=_client_settings(eam_patch_template_path=str(TEMPLATE_MIN))
-    ).patch_eam_schedule_data(1452479, schedule)
-
-    assert out == {"ok": True}
-    mock_session.request.assert_called_once()
-    args, kwargs = mock_session.request.call_args
-    assert args[0] == "PATCH"
-    assert args[1] == "http://127.0.0.1:9/api/workorders/1452479"
-    sent = kwargs["json"]
-    assert sent["CREATEDDATE"]["DAY"] == 99
-    assert sent["FIXED"] == "V"
-
-
-@patch("app.services.cloud_backlog_client.httpx.Client")
-def test_patch_eam_schedule_data_resolves_template_from_settings(mock_client_cls, monkeypatch):
-    monkeypatch.setenv("EAM_PATCH_TEMPLATE_PATH", str(TEMPLATE_MIN))
-    mock_response = MagicMock(spec=httpx.Response)
-    mock_response.is_success = True
-    mock_response.json.return_value = {"ok": True}
-
-    mock_session = MagicMock()
-    mock_session.request.return_value = mock_response
-    mock_session.__enter__ = MagicMock(return_value=mock_session)
-    mock_session.__exit__ = MagicMock(return_value=False)
-    mock_client_cls.return_value = mock_session
-
-    schedule = EamWorkOrderScheduleData(createddate=_dt(day=5))
-    settings = get_backlog_integration_settings()
-    assert settings.eam_patch_template_path == str(TEMPLATE_MIN)
-
-    CloudBacklogClient(settings=settings).patch_eam_schedule_data(9, schedule)
-
-    _, kwargs = mock_session.request.call_args
-    assert kwargs["json"]["CREATEDDATE"]["DAY"] == 5
-
-
-def test_patch_eam_schedule_data_wraps_missing_template():
-    schedule = EamWorkOrderScheduleData()
-    try:
-        CloudBacklogClient(
-            settings=_client_settings(
-                eam_patch_template_path=str(FIXTURES / "nonexistent.json")
-            )
-        ).patch_eam_schedule_data(1, schedule)
-    except CloudBacklogError as e:
-        assert "not found" in str(e).lower()
-    else:
-        raise AssertionError("expected CloudBacklogError")
-
-
-def test_patch_eam_schedule_data_requires_template_when_unconfigured():
-    schedule = EamWorkOrderScheduleData()
-    with pytest.raises(CloudBacklogError, match="EAM_PATCH_TEMPLATE_PATH"):
-        CloudBacklogClient(settings=_client_settings()).patch_eam_schedule_data(
-            1,
-            schedule,
-        )

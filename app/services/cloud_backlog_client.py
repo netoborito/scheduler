@@ -86,12 +86,11 @@ def _grid_list_request_body(cfg: BacklogIntegrationSettings) -> dict[str, Any]:
             "GRID_ID": cfg.grid_id,
             "NUMBER_OF_ROWS_FIRST_RETURNED": 10000,
             "CURSOR_POSITION": 0,
-            "LOCALIZE_RESULT": "TRUE"},
-        "GRID_TYPE": {
-            "TYPE": "LIST"},
-        "DATASPY": {
-            "DATASPY_ID": cfg.dataspy_id},
-        "REQUEST_TYPE": "LIST.DATA_ONLY.STORED"
+            "LOCALIZE_RESULT": "TRUE",
+        },
+        "GRID_TYPE": {"TYPE": "LIST"},
+        "DATASPY": {"DATASPY_ID": cfg.dataspy_id},
+        "REQUEST_TYPE": "LIST.DATA_ONLY.STORED",
     }
 
 
@@ -125,8 +124,7 @@ def _cell_values_from_row(row: dict[str, Any]) -> tuple[Any, list[str]]:
     values: list[str] = []
     for cell in cells:
         if isinstance(cell, dict):
-            values.append("" if cell.get("value")
-                          is None else str(cell["value"]))
+            values.append("" if cell.get("value") is None else str(cell["value"]))
         else:
             values.append("" if cell is None else str(cell))
     return rid, values
@@ -170,9 +168,7 @@ def _format_backlog_df(df: pd.DataFrame) -> pd.DataFrame:
     out = df.copy()
     for col in out.columns:
         if out[col].dtype == object:
-            out[col] = out[col].map(
-                lambda x: x.strip() if isinstance(x, str) else x
-            )
+            out[col] = out[col].map(lambda x: x.strip() if isinstance(x, str) else x)
     return out
 
 
@@ -226,16 +222,32 @@ class CloudBacklogClient:
         return data, response
 
     def _work_order_url(self, wo_id: str | int) -> str:
-        cfg = self._settings
-        base = (cfg.work_order_api_base_url or "").strip().rstrip("/")
-        if not base:
-            raise CloudBacklogError(
-                "WORK_ORDER_API_BASE_URL is not configured in the environment"
-            )
-        path_id = quote(str(wo_id), safe="")
-        return f"{base}/workorders/{path_id}"
+        """Build PATCH URL from ``SCHEDULE_ENDPOINT`` (and optionally ``rest_url``).
 
-    def _build_work_order_schedule_data_patch_payload(
+        If ``schedule_endpoint`` is an absolute URL (http/https), it is treated as the
+        collection base (should usually end with ``/``); the work order id is appended.
+        Otherwise it is a path suffix joined after ``rest_url`` with slashes.
+        """
+        cfg = self._settings
+        path_id = quote(str(wo_id), safe="")
+        sched = (cfg.schedule_endpoint or "").strip()
+        if not sched:
+            raise CloudBacklogError(
+                "SCHEDULE_ENDPOINT is not configured in the environment"
+            )
+        if sched.startswith(("http://", "https://")):
+            base = sched.rstrip("/")
+            return f"{base}/{path_id}"
+        rest = (cfg.rest_url or "").strip().rstrip("/")
+        if not rest:
+            raise CloudBacklogError(
+                "BACKLOG_REST_URL / rest_url is not configured "
+                "for relative SCHEDULE_ENDPOINT"
+            )
+        mid = sched.strip("/")
+        return f"{rest}/{mid}/{path_id}"
+
+    def _build_schedule_data_patch_payload(
         self,
         dateblock: dict[str, Any],
         wo_id: int,
@@ -244,12 +256,8 @@ class CloudBacklogClient:
             "WORKORDERID": {
                 "JOBNUM": wo_id,
             },
-            "STATUS": {
-                "STATUSCODE": "R"
-            },
-            "DEPARTMENTID": {
-                "DEPARTMENTCODE": "*"
-            },
+            "STATUS": {"STATUSCODE": "R"},
+            "DEPARTMENTID": {"DEPARTMENTCODE": "*"},
             "FIXED": "V",
             "STARTDATE": dateblock,
         }
@@ -261,28 +269,26 @@ class CloudBacklogClient:
     ) -> Any:
         """PATCH work order schedule data to EAM."""
         assignment = _assignment_for_work_order(wo, schedule)
-        schedule_date = schedule.start_date + timedelta(
-            days=assignment.day_offset
-        )
+        schedule_date = schedule.start_date + timedelta(days=assignment.day_offset)
 
         # put schedule date in desired format
         year = datetime(schedule_date.year, 1, 1, tzinfo=timezone.utc)
-        year_ux = int(year.timestamp()*1000)
+        year_ux = int(year.timestamp() * 1000)
 
         dateblock = {
             "year": year_ux,
             "month": schedule_date.month,
             "day": schedule_date.day,
-            "hour": 0,
+            "hour": 7,
             "minute": 0,
             "second": 0,
             "subsecond": 0,
             "timezone": "UTC",
-            "qualifier": ""
+            "qualifier": "FROM",
         }
 
         # build patch body
-        body = self._build_work_order_schedule_data_patch_payload(
+        body = self._build_schedule_data_patch_payload(
             dateblock=dateblock,
             wo_id=wo.id,
         )
@@ -296,10 +302,10 @@ class CloudBacklogClient:
     def fetch_backlog(self) -> pd.DataFrame:
         """POST and return the backlog as a formatted DataFrame, or raise ``CloudBacklogError``."""
         cfg = self._settings
+        url = self._settings.rest_url + self._settings.backlog_endpoint
         body = _grid_list_request_body(cfg)
 
-        data, response = self._request_json_with_response(
-            "POST", cfg.rest_url, body)
+        data, response = self._request_json_with_response("POST", url, body)
         df = _parse_eam_payload_to_dataframe(data, response=response)
         df = _format_backlog_df(df)
 

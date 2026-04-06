@@ -1,12 +1,11 @@
 """Tests for CloudBacklogClient."""
 
 from dataclasses import replace
+from datetime import date, datetime, timezone
 from unittest.mock import MagicMock, patch
 
 import httpx
 import pandas as pd
-
-from datetime import date
 
 from app.config import BacklogIntegrationSettings
 from app.models.domain import Assignment, Schedule, WorkOrder
@@ -16,15 +15,15 @@ from app.services.cloud_backlog_client import CloudBacklogClient, CloudBacklogEr
 
 def _sample_settings() -> BacklogIntegrationSettings:
     return BacklogIntegrationSettings(
-        rest_url="http://127.0.0.1:9/backlog",
+        rest_url="http://127.0.0.1:9",
         api_key="secret",
         http_timeout_seconds=5,
         tenant_id="T1",
         organization="Org",
         grid_id=100195,
         dataspy_id=42,
-        work_order_api_base_url="http://127.0.0.1:9/api",
-        eam_patch_template_path="",
+        backlog_endpoint="/backlog",
+        schedule_endpoint="api/workorders",
     )
 
 
@@ -35,7 +34,13 @@ def _eam_payload_two_rows() -> dict:
                 "GRID": {
                     "DATA": {
                         "ROW": [
-                            {"id": 1, "D": [{"value": "a", "n": 0}, {"value": "b", "n": 1}]},
+                            {
+                                "id": 1,
+                                "D": [
+                                    {"value": "a", "n": 0},
+                                    {"value": "b", "n": 1},
+                                ],
+                            },
                             {"id": 2, "D": [{"value": "c", "n": 0}]},
                         ]
                     }
@@ -195,7 +200,9 @@ def test_fetch_backlog_wraps_request_error(mock_client_cls):
     mock_session = MagicMock()
     mock_session.__enter__ = MagicMock(return_value=mock_session)
     mock_session.__exit__ = MagicMock(return_value=False)
-    mock_session.request.side_effect = httpx.ConnectError("simulated", request=MagicMock())
+    mock_session.request.side_effect = httpx.ConnectError(
+        "simulated", request=MagicMock()
+    )
     mock_client_cls.return_value = mock_session
 
     try:
@@ -246,11 +253,16 @@ def test_patch_eam_schedule_data_sends_patch_to_workorders_url(mock_client_cls):
     assert kwargs["headers"]["X-API-Key"] == "secret"
     body = kwargs["json"]
     assert body["WORKORDERID"]["JOBNUM"] == 123
-    assert body["STARTDATE"]["year"] == 2026
+    expected_year_ux = int(
+        datetime(2026, 1, 1, tzinfo=timezone.utc).timestamp() * 1000
+    )
+    assert body["STARTDATE"]["year"] == expected_year_ux
+    assert body["STARTDATE"]["month"] == 1
+    assert body["STARTDATE"]["day"] == 5
 
 
-def test_patch_eam_schedule_data_raises_when_base_url_missing():
-    s = replace(_sample_settings(), work_order_api_base_url="")
+def test_patch_eam_schedule_data_raises_when_schedule_endpoint_missing():
+    s = replace(_sample_settings(), schedule_endpoint="")
     start = date(2026, 1, 5)
     wo = WorkOrder(
         id=1,
@@ -268,6 +280,6 @@ def test_patch_eam_schedule_data_raises_when_base_url_missing():
     try:
         CloudBacklogClient(settings=s).patch_eam_schedule_data(wo, schedule)
     except CloudBacklogError as e:
-        assert "WORK_ORDER_API_BASE_URL" in str(e)
+        assert "SCHEDULE_ENDPOINT" in str(e)
     else:
         raise AssertionError("expected CloudBacklogError")

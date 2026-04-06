@@ -1,0 +1,124 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "FastAPI: run app",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "uvicorn",
+      "args": ["app.main:app", "--reload", "--port", "8000"],
+      "cwd": "${workspaceFolder}",
+      "python": "${workspaceFolder}/.venv/bin/python",
+      "justMyCode": false
+    },
+    {
+      "name": "FastAPI: run app (no reload)",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "uvicorn",
+      "args": ["app.main:app", "--port", "8000"],
+      "cwd": "${workspaceFolder}",
+      "python": "${workspaceFolder}/.venv/bin/python",
+      "justMyCode": false
+    },
+    {
+      "name": "Optimizer: synthetic work orders",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/debug.py",
+      "args": ["optimize"],
+      "cwd": "${workspaceFolder}",
+      "python": "${workspaceFolder}/.venv/bin/python",
+      "console": "integratedTerminal",
+      "justMyCode": false
+    },
+    {
+      "name": "Optimizer: Excel backlog (samples/EAMExport.xlsx)",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/debug.py",
+      "args": ["optimize-excel"],
+      "cwd": "${workspaceFolder}",
+      "python": "${workspaceFolder}/.venv/bin/python",
+      "console": "integratedTerminal",
+      "justMyCode": false
+    },
+    {
+      "name": "Debug: interactive menu",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/debug.py",
+      "cwd": "${workspaceFolder}",
+      "python": "${workspaceFolder}/.venv/bin/python",
+      "console": "integratedTerminal",
+      "justMyCode": false
+    },
+    {
+      "name": "Debug: all tests",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/debug.py",
+      "args": ["all"],
+      "cwd": "${workspaceFolder}",
+      "python": "${workspaceFolder}/.venv/bin/python",
+      "console": "integratedTerminal",
+      "justMyCode": false
+    },
+    {
+      "name": "Debug: shift CRUD",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/debug.py",
+      "args": ["shift"],
+      "cwd": "${workspaceFolder}",
+      "python": "${workspaceFolder}/.venv/bin/python",
+      "console": "integratedTerminal",
+      "justMyCode": false
+    },
+    {
+      "name": "Debug: Excel I/O",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/debug.py",
+      "args": ["excel"],
+      "cwd": "${workspaceFolder}",
+      "python": "${workspaceFolder}/.venv/bin/python",
+      "console": "integratedTerminal",
+      "justMyCode": false
+    },
+    {
+      "name": "Cloud backlog: fetch (REST POST)",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/debug.py",
+      "args": ["cloud-backlog"],
+      "cwd": "${workspaceFolder}",
+      "python": "${workspaceFolder}/.venv/bin/python",
+      "console": "integratedTerminal",
+      "envFile": "${workspaceFolder}/.env",
+      "justMyCode": false
+    },
+    {
+      "name": "Cloud backlog: PATCH work order",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/debug.py",
+      "args": ["cloud-backlog-patch"],
+      "cwd": "${workspaceFolder}",
+      "python": "${workspaceFolder}/.venv/bin/python",
+      "console": "integratedTerminal",
+      "envFile": "${workspaceFolder}/.env",
+      "justMyCode": false
+    },
+    {
+      "name": "Python: current file",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${file}",
+      "cwd": "${workspaceFolder}",
+      "python": "${workspaceFolder}/.venv/bin/python",
+      "console": "integratedTerminal",
+      "justMyCode": false
+    }
+  ]
+}

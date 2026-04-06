@@ -1,4 +1,5 @@
 """Debug and testing script for the Industrial Maintenance Scheduler."""
+
 from app.utils.date_utils import get_next_monday
 from app.services.shift_service import (
     add_shift,
@@ -64,32 +65,25 @@ def debug_fetch_cloud_backlog():
 
 
 def debug_patch_cloud_work_order():
-    """PATCH one work order via EAM REST (see EAM_PATCH_WO_ID and WORK_ORDER_API_BASE_URL in .env)."""
+    """PATCH one work order (wo_id, ``SCHEDULE_ENDPOINT`` in .env)."""
     print_section("Cloud backlog PATCH (work order)")
     settings = get_backlog_integration_settings()
     print(
-        f"WORK_ORDER_API_BASE_URL: {settings.work_order_api_base_url or '(not set)'}\n"
+        f"rest_url: {settings.rest_url or '(not set)'}\n"
+        f"SCHEDULE_ENDPOINT: {settings.schedule_endpoint or '(not set)'}\n"
         f"tenant_id={settings.tenant_id!r} "
         f"organization={settings.organization!r} "
         f"grid_id={settings.grid_id!r} "
         f"dataspy_id={settings.dataspy_id!r}"
     )
-    wo_raw = os.environ.get("EAM_PATCH_WO_ID", "").strip()
-    if not wo_raw:
-        print("Set EAM_PATCH_WO_ID in the environment for this debug run.")
-        return
-    try:
-        wo_id = int(wo_raw)
-    except ValueError:
-        print(f"EAM_PATCH_WO_ID must be an integer, got: {wo_raw!r}")
-        return
+    wo_id = 1452505
 
     start = get_next_monday()
     schedule = Schedule(
         assignments=[
             Assignment(
                 work_order_id=str(wo_id),
-                day_offset=0,
+                day_offset=4,
                 resource_id="debug",
             ),
         ],
@@ -275,11 +269,11 @@ def test_optimizer_with_excel_backlog():
     try:
         xlsx_bytes = sample_file.read_bytes()
         start_date = get_next_monday()
-        work_orders = parse_backlog_from_excel(
-            xlsx_bytes, start_date=start_date)
+        work_orders = parse_backlog_from_excel(xlsx_bytes, start_date=start_date)
     except Exception as e:
         print(f"   ✗ Error loading/parsing Excel: {e}")
         import traceback
+
         traceback.print_exc()
         return
 
@@ -289,14 +283,12 @@ def test_optimizer_with_excel_backlog():
         return
 
     for wo in work_orders[:5]:
-        print(
-            f"   - {wo.id}: {wo.trade}, priority {wo.priority}, {wo.duration_hours}h")
+        print(f"   - {wo.id}: {wo.trade}, priority {wo.priority}, {wo.duration_hours}h")
     if len(work_orders) > 5:
         print(f"   ... and {len(work_orders) - 5} more")
 
     try:
-        schedule = optimize_schedule(
-            work_orders=work_orders, start_date=start_date)
+        schedule = optimize_schedule(work_orders=work_orders, start_date=start_date)
         print(f"\n   ✓ Schedule generated")
         print(f"   Start date: {schedule.start_date}")
         print(f"   Horizon: {schedule.horizon_days} days")
@@ -308,8 +300,9 @@ def test_optimizer_with_excel_backlog():
         if schedule.assignments:
             print("\n   Assignments:")
             for assignment in schedule.assignments:
-                assigned_date = schedule.start_date + \
-                    timedelta(days=assignment.day_offset)
+                assigned_date = schedule.start_date + timedelta(
+                    days=assignment.day_offset
+                )
                 duration_h = wo_duration.get(assignment.work_order_id, 0)
                 print(
                     f"   - {assignment.work_order_id} → {assignment.resource_id} "
@@ -334,8 +327,7 @@ def test_optimizer_with_excel_backlog():
                     ]
                 )
                 for a in schedule.assignments:
-                    scheduled_date = schedule.start_date + \
-                        timedelta(days=a.day_offset)
+                    scheduled_date = schedule.start_date + timedelta(days=a.day_offset)
                     duration_h = wo_duration.get(a.work_order_id, 0)
                     description = wo_description.get(a.work_order_id, "")
                     priority = wo_priority.get(a.work_order_id, 0)
@@ -353,6 +345,7 @@ def test_optimizer_with_excel_backlog():
     except Exception as e:
         print(f"   ✗ Error optimizing schedule: {e}")
         import traceback
+
         traceback.print_exc()
 
 
@@ -425,7 +418,8 @@ def main():
             print(f"Unknown test: {test_name}")
             print(
                 "Available tests: shift, excel, optimize-excel, cloud-backlog, "
-                "cloud-backlog-patch, all")
+                "cloud-backlog-patch, all"
+            )
     else:
         # Run interactive menu
         interactive_menu()

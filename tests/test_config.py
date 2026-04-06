@@ -12,8 +12,8 @@ def test_backlog_settings_from_env_test():
     assert settings.organization == "Test Org"
     assert settings.grid_id == 999999
     assert settings.dataspy_id == 1
-    assert settings.work_order_api_base_url == "http://127.0.0.1:4010/api"
-    assert settings.eam_patch_template_path == ""
+    assert settings.backlog_endpoint == ""
+    assert settings.schedule_endpoint == "http://127.0.0.1:4010/api/workorders"
 
 
 def test_rest_url_prefers_explicit_over_base_and_path(monkeypatch):

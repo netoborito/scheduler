@@ -24,18 +24,15 @@ class BacklogIntegrationSettings:
     organization: str
     grid_id: int
     dataspy_id: int
-    #: Base URL for work order REST calls; final path is ``{base}/workorders/{wo_id}``.
-    work_order_api_base_url: str
-    #: Path to JSON template for ``patch_eam_schedule_data`` (``EAM_PATCH_TEMPLATE_PATH``); required for that API.
-    eam_patch_template_path: str
+    backlog_endpoint: str
+    schedule_endpoint: str
 
 
 def _build_rest_url() -> str:
     explicit = os.environ.get("BACKLOG_REST_URL", "").strip()
     if explicit:
         return explicit
-    base = os.environ.get("BACKLOG_INTEGRATION_BASE_URL",
-                          "").strip().rstrip("/")
+    base = os.environ.get("BACKLOG_INTEGRATION_BASE_URL", "").strip().rstrip("/")
     path = os.environ.get("BACKLOG_BACKLOG_PATH", "").strip().lstrip("/")
     if base and path:
         return f"{base}/{path}"
@@ -58,10 +55,6 @@ def get_backlog_integration_settings() -> BacklogIntegrationSettings:
         organization=os.environ.get("ORGANIZATION", "").strip(),
         grid_id=int(os.environ.get("GRID_ID", "")),
         dataspy_id=int(os.environ.get("DATASPY_ID", "")),
-        work_order_api_base_url=os.environ.get(
-            "WORK_ORDER_API_BASE_URL", ""
-        ).strip().rstrip("/"),
-        eam_patch_template_path=os.environ.get(
-            "EAM_PATCH_TEMPLATE_PATH", ""
-        ).strip(),
+        backlog_endpoint=os.environ.get("BACKLOG_ENDPOINT", ""),
+        schedule_endpoint=os.environ.get("SCHEDULE_ENDPOINT", ""),
     )
