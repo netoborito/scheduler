@@ -1,26 +1,32 @@
 """Debug and testing script for the Industrial Maintenance Scheduler."""
 from app.utils.date_utils import get_next_monday
-from app.services.optimizer import optimize_schedule
-from app.services.excel_io import parse_backlog_from_excel, build_schedule_workbook
 from app.services.shift_service import (
     add_shift,
     delete_shift,
     get_all_shifts,
     get_shift_by_trade,
     update_shift,
-    load_shifts,
-    save_shifts,
 )
-from app.models.domain import WorkOrder
+from app.services.optimizer import optimize_schedule
+from app.services.excel_io import parse_backlog_from_excel
+from app.services.cloud_backlog_client import CloudBacklogClient, CloudBacklogError
+from app.models.domain import Assignment, Schedule, WorkOrder
 from app.models.shift import Shift
+from app.config import get_backlog_integration_settings, load_app_env
 import csv
+import json
 import os
 import sys
+from datetime import timedelta
 from pathlib import Path
-from datetime import date, timedelta
 
-# Add the project root to the path
+# Add the project root to the path before importing app.*
 sys.path.insert(0, str(Path(__file__).parent))
+
+
+load_app_env()
+
+_DEBUG_BACKLOG_PREVIEW_CHARS = 4096
 
 
 def print_section(title: str):
@@ -30,14 +36,93 @@ def print_section(title: str):
     print("=" * 60)
 
 
-def test_date_utils():
-    """Test date utility functions."""
-    print_section("Testing Date Utilities")
-    today = date.today()
-    next_monday = get_next_monday()
-    print(f"Today: {today} ({today.strftime('%A')})")
-    print(f"Next Monday: {next_monday} ({next_monday.strftime('%A')})")
-    print(f"Days until next Monday: {(next_monday - today).days}")
+def debug_fetch_cloud_backlog():
+    """Fetch backlog JSON from the configured cloud REST endpoint (.env)."""
+    print_section("Cloud backlog (REST)")
+    settings = get_backlog_integration_settings()
+    print(
+        f"URL: {settings.rest_url or '(not set)'}\n"
+        f"tenant_id={settings.tenant_id!r} "
+        f"organization={settings.organization!r} "
+        f"grid_id={settings.grid_id!r} "
+        f"dataspy_id={settings.dataspy_id!r}"
+    )
+    try:
+        df = CloudBacklogClient(settings=settings).fetch_backlog()
+    except CloudBacklogError as e:
+        print(f"Error: {e}")
+        if e.response is not None:
+            r = e.response
+            snippet = (r.text or "")[:500]
+            print(f"HTTP {r.status_code} — body (truncated): {snippet}")
+        return
+    print(f"Response: DataFrame {df.shape[0]} rows × {df.shape[1]} columns")
+    text = df.to_string(max_rows=50, max_cols=20)
+    if len(text) > _DEBUG_BACKLOG_PREVIEW_CHARS:
+        text = text[:_DEBUG_BACKLOG_PREVIEW_CHARS] + "\n... [truncated]"
+    print(text)
+
+
+def debug_patch_cloud_work_order():
+    """PATCH one work order via EAM REST (see EAM_PATCH_WO_ID and WORK_ORDER_API_BASE_URL in .env)."""
+    print_section("Cloud backlog PATCH (work order)")
+    settings = get_backlog_integration_settings()
+    print(
+        f"WORK_ORDER_API_BASE_URL: {settings.work_order_api_base_url or '(not set)'}\n"
+        f"tenant_id={settings.tenant_id!r} "
+        f"organization={settings.organization!r} "
+        f"grid_id={settings.grid_id!r} "
+        f"dataspy_id={settings.dataspy_id!r}"
+    )
+    wo_raw = os.environ.get("EAM_PATCH_WO_ID", "").strip()
+    if not wo_raw:
+        print("Set EAM_PATCH_WO_ID in the environment for this debug run.")
+        return
+    try:
+        wo_id = int(wo_raw)
+    except ValueError:
+        print(f"EAM_PATCH_WO_ID must be an integer, got: {wo_raw!r}")
+        return
+
+    start = get_next_monday()
+    schedule = Schedule(
+        assignments=[
+            Assignment(
+                work_order_id=str(wo_id),
+                day_offset=0,
+                resource_id="debug",
+            ),
+        ],
+        horizon_days=7,
+        start_date=start,
+    )
+    wo = WorkOrder(
+        id=wo_id,
+        description="debug patch",
+        duration_hours=1.0,
+        priority=1,
+        schedule_date=start,
+        trade="ELEC",
+    )
+    try:
+        data, response = CloudBacklogClient(settings=settings).patch_eam_schedule_data(
+            wo, schedule
+        )
+    except CloudBacklogError as e:
+        print(f"Error: {e}")
+        if e.response is not None:
+            r = e.response
+            snippet = (r.text or "")[:500]
+            print(f"HTTP {r.status_code} — body (truncated): {snippet}")
+        return
+    print(f"HTTP {response.status_code}")
+    try:
+        text = json.dumps(data, indent=2, default=str)
+    except TypeError:
+        text = str(data)
+    if len(text) > _DEBUG_BACKLOG_PREVIEW_CHARS:
+        text = text[:_DEBUG_BACKLOG_PREVIEW_CHARS] + "\n... [truncated]"
+    print(text)
 
 
 def test_shift_crud():
@@ -175,74 +260,6 @@ def test_work_order_parsing():
         traceback.print_exc()
 
 
-def test_optimizer():
-    """Test the schedule optimizer."""
-    print_section("Testing Schedule Optimizer")
-
-    # Create sample work orders
-    work_orders = [
-        WorkOrder(
-            id="WO-001",
-            description="Test work order 1",
-            duration_hours=8,
-            priority=1,
-            due_date=None,
-            trade="NC-E/I",
-        ),
-        WorkOrder(
-            id="WO-002",
-            description="Test work order 2",
-            duration_hours=4,
-            priority=2,
-            due_date=None,
-            trade="NC-E/I",
-        ),
-        WorkOrder(
-            id="WO-003",
-            description="Test work order 3",
-            duration_hours=6,
-            priority=3,
-            due_date=None,
-            trade="Mechanical",
-        ),
-    ]
-
-    print(f"   Testing with {len(work_orders)} work orders")
-    for wo in work_orders:
-        print(
-            f"   - {wo.id}: {wo.trade}, Priority {wo.priority}, {wo.duration_hours}h")
-
-    try:
-        start_date = get_next_monday()
-        schedule = optimize_schedule(
-            work_orders=work_orders, start_date=start_date)
-
-        print(f"\n   ✓ Schedule generated")
-        print(f"   Start date: {schedule.start_date}")
-        print(f"   Horizon: {schedule.horizon_days} days")
-        print(f"   Assignments: {len(schedule.assignments)}")
-
-        if schedule.assignments:
-            print("\n   Assignments:")
-            for assignment in schedule.assignments:
-                assigned_date = schedule.start_date
-                from datetime import timedelta
-
-                assigned_date += timedelta(days=assignment.day_offset)
-                print(
-                    f"   - {assignment.work_order_id} → {assignment.resource_id} "
-                    f"on {assigned_date} (day {assignment.day_offset})"
-                )
-        else:
-            print("   ⚠ No assignments generated (may be due to capacity constraints)")
-
-    except Exception as e:
-        print(f"   ✗ Error optimizing schedule: {e}")
-        import traceback
-
-        traceback.print_exc()
-
-
 def test_optimizer_with_excel_backlog():
     """Test optimize_schedule using work orders from parse_backlog_from_excel(samples/EAMExport.xlsx)."""
     default_sample = "samples/EAMExport.xlsx"
@@ -339,72 +356,29 @@ def test_optimizer_with_excel_backlog():
         traceback.print_exc()
 
 
-def test_excel_output():
-    """Test Excel schedule output."""
-    print_section("Testing Excel Schedule Output")
-
-    # Create a sample schedule
-    from app.models.domain import Assignment, Schedule
-
-    assignments = [
-        Assignment(work_order_id="WO-001", day_offset=0, resource_id="NC-E/I"),
-        Assignment(work_order_id="WO-002", day_offset=1, resource_id="NC-E/I"),
-    ]
-    schedule = Schedule(
-        assignments=assignments, horizon_days=7, start_date=get_next_monday()
-    )
-
-    try:
-        wb = build_schedule_workbook(schedule)
-        print("   ✓ Schedule workbook created")
-        print(f"   Sheets: {wb.sheetnames}")
-        if wb.active:
-            print(f"   Rows in schedule sheet: {wb.active.max_row}")
-            print("   First few rows:")
-            for row in list(wb.active.iter_rows(values_only=True))[:5]:
-                print(f"     {row}")
-    except Exception as e:
-        print(f"   ✗ Error creating workbook: {e}")
-        import traceback
-
-        traceback.print_exc()
-
-
 def interactive_menu():
     """Interactive debug menu."""
     while True:
         print("\n" + "=" * 60)
         print("  DEBUG MENU")
         print("=" * 60)
-        print("1. Test Date Utilities")
-        print("2. Test Shift CRUD Operations")
-        print("3. Test Work Order Parsing (Excel)")
-        print("4. Test Schedule Optimizer")
-        print("5. Test Excel Schedule Output")
-        print("6. Run All Tests")
-        print("7. View Current Shifts")
+        print("1. Test Shift CRUD Operations")
+        print("2. Test Work Order Parsing (Excel)")
+        print("3. Run All Tests")
+        print("4. View Current Shifts")
         print("0. Exit")
         print("-" * 60)
 
         choice = input("Select an option: ").strip()
 
         if choice == "1":
-            test_date_utils()
-        elif choice == "2":
             test_shift_crud()
+        elif choice == "2":
+            test_work_order_parsing()
         elif choice == "3":
+            test_shift_crud()
             test_work_order_parsing()
         elif choice == "4":
-            test_optimizer()
-        elif choice == "5":
-            test_excel_output()
-        elif choice == "6":
-            test_date_utils()
-            test_shift_crud()
-            test_work_order_parsing()
-            test_optimizer()
-            test_excel_output()
-        elif choice == "7":
             print_section("Current Shifts")
             shifts = get_all_shifts()
             if shifts:
@@ -434,28 +408,24 @@ def main():
     if len(sys.argv) > 1:
         # Run specific test if argument provided
         test_name = sys.argv[1].lower()
-        if test_name == "date":
-            test_date_utils()
-        elif test_name == "shift":
+        if test_name == "shift":
             test_shift_crud()
         elif test_name == "excel":
             test_work_order_parsing()
-        elif test_name == "optimize":
-            test_optimizer()
         elif test_name == "optimize-excel":
             test_optimizer_with_excel_backlog()
-        elif test_name == "output":
-            test_excel_output()
         elif test_name == "all":
-            test_date_utils()
             test_shift_crud()
             test_work_order_parsing()
-            test_optimizer()
-            test_excel_output()
+        elif test_name == "cloud-backlog":
+            debug_fetch_cloud_backlog()
+        elif test_name == "cloud-backlog-patch":
+            debug_patch_cloud_work_order()
         else:
             print(f"Unknown test: {test_name}")
             print(
-                "Available tests: date, shift, excel, optimize, optimize-excel, output, all")
+                "Available tests: shift, excel, optimize-excel, cloud-backlog, "
+                "cloud-backlog-patch, all")
     else:
         # Run interactive menu
         interactive_menu()

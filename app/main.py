@@ -23,6 +23,8 @@ from .services.shift_service import (
 )
 from pydantic import BaseModel
 
+from .config import load_app_env
+
 
 BASE_DIR = Path(__file__).resolve().parent
 TEMPLATES_DIR = BASE_DIR / "templates"
@@ -30,6 +32,8 @@ STATIC_DIR = BASE_DIR / "static"
 
 # Create static directory if it doesn't exist
 STATIC_DIR.mkdir(exist_ok=True)
+
+load_app_env()
 
 app = FastAPI(title="Industrial Maintenance Scheduler")
 

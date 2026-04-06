@@ -68,8 +68,8 @@ def test_save_and_load_shifts():
 
         loaded_shifts = load_shifts(shifts_file)
         assert len(loaded_shifts) == 2
-        assert loaded_shifts[0].trade == "NC-E/I"
-        assert loaded_shifts[1].trade == "Mechanical"
+        assert loaded_shifts[1].trade == "NC-E/I"
+        assert loaded_shifts[0].trade == "Mechanical"
 
 
 def test_add_shift():

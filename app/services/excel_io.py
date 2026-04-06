@@ -130,6 +130,12 @@ def parse_backlog_from_excel(
     - Trade: Required trade/resource type for this work order
     - Type: Work order type (e.g. "Corrective")
     - Safety: Safety flag (Yes/No or boolean)
+    - Class: Classification
+    - Assigned To: Assigned technician
+    - Date Created: Date created
+    - Department: Department
+    - Equipment: Equipment
+    - Persons Required: Number of people required
     """
     buffer = BytesIO(xlsx_bytes)
     df = pd.read_excel(buffer)

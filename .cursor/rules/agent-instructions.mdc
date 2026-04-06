@@ -1,0 +1,26 @@
+---
+description: Project-specific instructions for the Cursor AI agent (edit this file to guide the agent)
+alwaysApply: true
+---
+
+# Agent instructions
+
+Edit this file to steer the Cursor agent for **this repo**. These notes are included when `alwaysApply` is true.
+
+## Code style
+
+- **Minimal diffs:** Keep changes as small as needed to satisfy the task; avoid drive-by refactors, extra files, or scope creep.
+- **Readability first:** Prefer clear names, short functions, and a **straightforward, linear flow** (easy to read top-to-bottom) over clever abstractions.
+- **Avoid defensive excess:** Do not add broad try/except, redundant guards, or speculative validation unless the task clearly requires handling a real failure mode. Trust callers and normal types unless the codebase already patterns otherwise.
+
+## Preferences
+
+-
+
+## Conventions
+
+-
+
+## Things to avoid
+
+- Heavy defensive programming, deep nesting, and over-engineering when a simple path suffices.
