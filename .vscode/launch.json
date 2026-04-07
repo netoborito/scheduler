@@ -8,7 +8,7 @@
       "module": "uvicorn",
       "args": ["app.main:app", "--reload", "--port", "8000"],
       "cwd": "${workspaceFolder}",
-      "python": "${workspaceFolder}/.venv/bin/python",
+      "python": "${workspaceFolder}/.venv/Scripts/python.exe",
       "justMyCode": false
     },
     {
@@ -18,7 +18,7 @@
       "module": "uvicorn",
       "args": ["app.main:app", "--port", "8000"],
       "cwd": "${workspaceFolder}",
-      "python": "${workspaceFolder}/.venv/bin/python",
+      "python": "${workspaceFolder}/.venv/Scripts/python.exe",
       "justMyCode": false
     },
     {
@@ -28,7 +28,7 @@
       "program": "${workspaceFolder}/debug.py",
       "args": ["optimize"],
       "cwd": "${workspaceFolder}",
-      "python": "${workspaceFolder}/.venv/bin/python",
+      "python": "${workspaceFolder}/.venv/Scripts/python.exe",
       "console": "integratedTerminal",
       "justMyCode": false
     },
@@ -39,7 +39,7 @@
       "program": "${workspaceFolder}/debug.py",
       "args": ["optimize-excel"],
       "cwd": "${workspaceFolder}",
-      "python": "${workspaceFolder}/.venv/bin/python",
+      "python": "${workspaceFolder}/.venv/Scripts/python.exe",
       "console": "integratedTerminal",
       "justMyCode": false
     },
@@ -49,7 +49,7 @@
       "request": "launch",
       "program": "${workspaceFolder}/debug.py",
       "cwd": "${workspaceFolder}",
-      "python": "${workspaceFolder}/.venv/bin/python",
+      "python": "${workspaceFolder}/.venv/Scripts/python.exe",
       "console": "integratedTerminal",
       "justMyCode": false
     },
@@ -60,7 +60,7 @@
       "program": "${workspaceFolder}/debug.py",
       "args": ["all"],
       "cwd": "${workspaceFolder}",
-      "python": "${workspaceFolder}/.venv/bin/python",
+      "python": "${workspaceFolder}/.venv/Scripts/python.exe",
       "console": "integratedTerminal",
       "justMyCode": false
     },
@@ -71,7 +71,7 @@
       "program": "${workspaceFolder}/debug.py",
       "args": ["shift"],
       "cwd": "${workspaceFolder}",
-      "python": "${workspaceFolder}/.venv/bin/python",
+      "python": "${workspaceFolder}/.venv/Scripts/python.exe",
       "console": "integratedTerminal",
       "justMyCode": false
     },
@@ -82,7 +82,7 @@
       "program": "${workspaceFolder}/debug.py",
       "args": ["excel"],
       "cwd": "${workspaceFolder}",
-      "python": "${workspaceFolder}/.venv/bin/python",
+      "python": "${workspaceFolder}/.venv/Scripts/python.exe",
       "console": "integratedTerminal",
       "justMyCode": false
     },
@@ -93,7 +93,7 @@
       "program": "${workspaceFolder}/debug.py",
       "args": ["cloud-backlog"],
       "cwd": "${workspaceFolder}",
-      "python": "${workspaceFolder}/.venv/bin/python",
+      "python": "${workspaceFolder}/.venv/Scripts/python.exe",
       "console": "integratedTerminal",
       "envFile": "${workspaceFolder}/.env",
       "justMyCode": false
@@ -105,7 +105,7 @@
       "program": "${workspaceFolder}/debug.py",
       "args": ["cloud-backlog-patch"],
       "cwd": "${workspaceFolder}",
-      "python": "${workspaceFolder}/.venv/bin/python",
+      "python": "${workspaceFolder}/.venv/Scripts/python.exe",
       "console": "integratedTerminal",
       "envFile": "${workspaceFolder}/.env",
       "justMyCode": false
@@ -116,7 +116,7 @@
       "request": "launch",
       "program": "${file}",
       "cwd": "${workspaceFolder}",
-      "python": "${workspaceFolder}/.venv/bin/python",
+      "python": "${workspaceFolder}/.venv/Scripts/python.exe",
       "console": "integratedTerminal",
       "justMyCode": false
     }

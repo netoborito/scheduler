@@ -7,48 +7,12 @@ import os
 from datetime import timedelta, datetime, timezone
 from pathlib import Path
 from typing import Any
-from urllib.parse import quote
 
 import httpx
 import pandas as pd
 
 from app.config import BacklogIntegrationSettings, get_backlog_integration_settings
 from app.models.domain import Assignment, Schedule, WorkOrder
-
-# CSV column names in order; index i matches EAM row D[i].value. Edit to match your grid.
-BACKLOG_CSV_COLUMNS: list[str] = [
-    # "0": "Equipment",
-    # "1": "Department",
-    # "2": "Type",
-    # "3": "EHS",
-    # "4": "code",
-    # "5": "Status",
-    # "6": "Priority",
-    # "7": "Scheduled Start Date",
-    # "8": "Organization",
-    # "9": "WO_ID",
-    # "10": "Assigned To",
-    # "11": "Trade",
-    # "12": "Hours",
-    # "13": "Persons Required",
-    # "14": "Organization",
-    # "15": "code",
-    # "16": "Description",
-    # "17": "Safety",
-    # "18": "Original PM Due Date",
-    # "19": "blank",
-    # "20": "blank",
-    # "21": "blank",
-    # "22": "blank",
-    # "23": "blank",
-    # "24": "blank",
-    # "25": "blank",
-    # "26": "unknown number",
-    # "27": "A/S",
-    # "28": "Date Created",
-    # "29": "blank",
-    # "30": "Equipment Description"
-]
 
 
 def _assignment_for_work_order(wo: WorkOrder, schedule: Schedule) -> Assignment:
@@ -90,32 +54,8 @@ def _grid_list_request_body(cfg: BacklogIntegrationSettings) -> dict[str, Any]:
         },
         "GRID_TYPE": {"TYPE": "LIST"},
         "DATASPY": {"DATASPY_ID": cfg.dataspy_id},
-        "REQUEST_TYPE": "LIST.DATA_ONLY.STORED",
+        "REQUEST_TYPE": "LIST.HEAD_DATA.STORED",
     }
-
-
-def _extract_eam_grid_rows(payload: dict[str, Any]) -> list[dict[str, Any]] | None:
-    """Return GRID.DATA.ROW list from EAM AddResponse-shaped JSON, or None if absent."""
-    result = payload.get("Result")
-    if not isinstance(result, dict):
-        return None
-    rd = result.get("ResultData")
-    if not isinstance(rd, dict):
-        return None
-    grid = rd.get("GRID")
-    if not isinstance(grid, dict):
-        return None
-    data = grid.get("DATA")
-    if not isinstance(data, dict):
-        return None
-    rows = data.get("ROW")
-    if rows is None:
-        return None
-    if isinstance(rows, dict):
-        return [rows]
-    if isinstance(rows, list):
-        return rows
-    return None
 
 
 def _cell_values_from_row(row: dict[str, Any]) -> tuple[Any, list[str]]:
@@ -130,37 +70,16 @@ def _cell_values_from_row(row: dict[str, Any]) -> tuple[Any, list[str]]:
     return rid, values
 
 
-def _parse_eam_payload_to_dataframe(
-    data: dict[str, Any],
-    *,
-    response: httpx.Response | None = None,
-) -> pd.DataFrame:
-    """Build a DataFrame from EAM grid rows or raise ``CloudBacklogError``."""
-    if not BACKLOG_CSV_COLUMNS:
-        raise CloudBacklogError(
-            "BACKLOG_CSV_COLUMNS is empty",
-            response=response,
-        )
-    rows = _extract_eam_grid_rows(data)
-
-    if not rows:
-        raise CloudBacklogError(
-            "Backlog response has no EAM grid rows",
-            response=response,
-        )
-    n = len(BACKLOG_CSV_COLUMNS)
-    matrix: list[list[str]] = []
-    for row in rows:
-        if not isinstance(row, dict):
-            continue
-        _rid, vals = _cell_values_from_row(row)
-        matrix.append((vals + [""] * n)[:n])
-    if not matrix:
-        raise CloudBacklogError(
-            "Backlog response has no usable grid rows",
-            response=response,
-        )
-    return pd.DataFrame(matrix, columns=list(BACKLOG_CSV_COLUMNS))
+def _parse_eam_payload_to_dataframe(data: dict[str, Any]) -> pd.DataFrame:
+    """Build a DataFrame from json payload"""
+    grid = data["Result"]["ResultData"]["GRID"]
+    rows = grid["DATA"]["ROW"]
+    columns = [f["label"] for f in grid["FIELDS"]["FIELD"]]
+    matrix = [
+        [str(c.get("value", "") if isinstance(c, dict) else (c or "")) for c in row.get("D", [])]
+        for row in rows
+    ]
+    return pd.DataFrame(matrix, columns=columns)
 
 
 def _format_backlog_df(df: pd.DataFrame) -> pd.DataFrame:
@@ -222,30 +141,8 @@ class CloudBacklogClient:
         return data, response
 
     def _work_order_url(self, wo_id: str | int) -> str:
-        """Build PATCH URL from ``SCHEDULE_ENDPOINT`` (and optionally ``rest_url``).
-
-        If ``schedule_endpoint`` is an absolute URL (http/https), it is treated as the
-        collection base (should usually end with ``/``); the work order id is appended.
-        Otherwise it is a path suffix joined after ``rest_url`` with slashes.
-        """
         cfg = self._settings
-        path_id = quote(str(wo_id), safe="")
-        sched = (cfg.schedule_endpoint or "").strip()
-        if not sched:
-            raise CloudBacklogError(
-                "SCHEDULE_ENDPOINT is not configured in the environment"
-            )
-        if sched.startswith(("http://", "https://")):
-            base = sched.rstrip("/")
-            return f"{base}/{path_id}"
-        rest = (cfg.rest_url or "").strip().rstrip("/")
-        if not rest:
-            raise CloudBacklogError(
-                "BACKLOG_REST_URL / rest_url is not configured "
-                "for relative SCHEDULE_ENDPOINT"
-            )
-        mid = sched.strip("/")
-        return f"{rest}/{mid}/{path_id}"
+        return f"{cfg.rest_url}{cfg.schedule_endpoint}/{wo_id}%23AZP%20MOORESBORO"
 
     def _build_schedule_data_patch_payload(
         self,
@@ -256,9 +153,6 @@ class CloudBacklogClient:
             "WORKORDERID": {
                 "JOBNUM": wo_id,
             },
-            "STATUS": {"STATUSCODE": "R"},
-            "DEPARTMENTID": {"DEPARTMENTCODE": "*"},
-            "FIXED": "V",
             "STARTDATE": dateblock,
         }
 
@@ -276,15 +170,15 @@ class CloudBacklogClient:
         year_ux = int(year.timestamp() * 1000)
 
         dateblock = {
-            "year": year_ux,
-            "month": schedule_date.month,
-            "day": schedule_date.day,
-            "hour": 7,
-            "minute": 0,
-            "second": 0,
-            "subsecond": 0,
-            "timezone": "UTC",
-            "qualifier": "FROM",
+            "YEAR": year_ux,
+            "MONTH": schedule_date.month,
+            "DAY": schedule_date.day,
+            "HOUR": 7,
+            "MINUTE": 0,
+            "SECOND": 0,
+            "SUBSECOND": 0,
+            "TIMEZONE": "-0500",
+            "qualifier": "OTHER",
         }
 
         # build patch body
@@ -295,6 +189,17 @@ class CloudBacklogClient:
 
         # patch work order
         url = self._work_order_url(wo.id)
+        print(
+            json.dumps(
+                {
+                    "method": "PATCH",
+                    "url": url,
+                    "headers": self._headers(),
+                    "body": body,
+                },
+                indent=2,
+            )
+        )
         data, response = self._request_json_with_response("PATCH", url, body)
 
         return data, response
@@ -306,7 +211,7 @@ class CloudBacklogClient:
         body = _grid_list_request_body(cfg)
 
         data, response = self._request_json_with_response("POST", url, body)
-        df = _parse_eam_payload_to_dataframe(data, response=response)
+        df = _parse_eam_payload_to_dataframe(data)
         df = _format_backlog_df(df)
 
         debug_csv = os.environ.get("BACKLOG_DEBUG_CSV", "").strip()

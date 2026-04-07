@@ -32,7 +32,10 @@ def _build_rest_url() -> str:
     explicit = os.environ.get("BACKLOG_REST_URL", "").strip()
     if explicit:
         return explicit
-    base = os.environ.get("BACKLOG_INTEGRATION_BASE_URL", "").strip().rstrip("/")
+    base = (
+        os.environ.get("INTEGRATION_BASE_URL", "").strip()
+        or os.environ.get("BACKLOG_INTEGRATION_BASE_URL", "").strip()
+    ).rstrip("/")
     path = os.environ.get("BACKLOG_BACKLOG_PATH", "").strip().lstrip("/")
     if base and path:
         return f"{base}/{path}"

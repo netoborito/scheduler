@@ -12,6 +12,7 @@ Edit this file to steer the Cursor agent for **this repo**. These notes are incl
 - **Minimal diffs:** Keep changes as small as needed to satisfy the task; avoid drive-by refactors, extra files, or scope creep.
 - **Readability first:** Prefer clear names, short functions, and a **straightforward, linear flow** (easy to read top-to-bottom) over clever abstractions.
 - **Avoid defensive excess:** Do not add broad try/except, redundant guards, or speculative validation unless the task clearly requires handling a real failure mode. Trust callers and normal types unless the codebase already patterns otherwise.
+- **Worse is better** Strictly adhere to this
 
 ## Preferences
 
@@ -23,4 +24,4 @@ Edit this file to steer the Cursor agent for **this repo**. These notes are incl
 
 ## Things to avoid
 
-- Heavy defensive programming, deep nesting, and over-engineering when a simple path suffices.
+- Defensive programming unless absoluetly necessary, deep nesting, and over-engineering when a simple path suffices.
