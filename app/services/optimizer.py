@@ -1,15 +1,20 @@
+"""CP-SAT schedule optimizer for work order assignment."""
+
 from __future__ import annotations
 
-from typing import Dict, List, Optional, Tuple
 from datetime import date, timedelta
-from pathlib import Path
+from typing import Dict, List, Optional, Tuple
 
 from ortools.sat.python import cp_model
 
 from app.models.domain import WorkOrder, Assignment, Schedule
 from app.models.shift import Shift
 from app.services.shift_service import load_shifts
-from app.utils.date_utils import get_next_monday
+
+
+# ---------------------------------------------------------------------------
+# Constants
+# ---------------------------------------------------------------------------
 
 DAYS = [
     "monday",
@@ -40,9 +45,7 @@ class ScheduleOptimizer:
         start_date: Optional[date] = None,
         horizon_days: int = 7,
         objective_gains: Optional[Dict[str, float]] = None,
-        # {wo_id: (day, trade, add_or_remove)}
         hints: Optional[Dict[str, Tuple[str, str, bool]]] = None,
-
     ) -> None:
         self.work_orders = work_orders
         self.start_date = start_date
@@ -52,9 +55,10 @@ class ScheduleOptimizer:
         self.model: cp_model.CpModel = cp_model.CpModel()
         self.shifts: List[Shift] = []
         self.x: Dict[Tuple[str, str, str], cp_model.BoolVar] = {}
-        # Use half-hour units internally so fractional durations (e.g. 0.5 h) become integers.
-        self.time_scale: int = 2  # 1 hour = 2 units
+        self.time_scale: int = 2  # half-hour units so fractional durations become ints
         self.hints: Dict[str, Tuple[date, str, bool]] = hints or {}
+
+    # -- Solve ---------------------------------------------------------------
 
     def optimize(self) -> Schedule:
         """Build model, solve, and return the schedule."""
@@ -77,11 +81,15 @@ class ScheduleOptimizer:
 
         return self._build_schedule(solver, solver_status)
 
+    # -- Helpers -------------------------------------------------------------
+
     def _get_manhours(self, wo: WorkOrder) -> int:
         return int(
             round(max(wo.duration_hours, 0.5)
                   * self.time_scale)
         ) * wo.num_people
+
+    # -- Constraints ---------------------------------------------------------
 
     def _add_schedule_wo_once_constraint(self) -> None:
         for wo in self.work_orders:
@@ -110,7 +118,6 @@ class ScheduleOptimizer:
                             boolvar = self.model.NewBoolVar(
                                 f"x_{wo.id}_{wo.trade}_{day}"
                             )
-                            # Store the man-hour units expression for this (wo, trade, day)
                             self.x[wo.id, wo.trade, day] = boolvar
 
     def _schedule_forced_work_orders(self) -> None:
@@ -130,7 +137,6 @@ class ScheduleOptimizer:
         wo_by_id = {wo.id: wo for wo in self.work_orders}
 
         for shift in self.shifts:
-            # Capacity per day, scaled to time units
             max_manhours_per_day = (
                 shift.technicians_per_crew * shift.shift_duration_hours * self.time_scale
             )
@@ -147,6 +153,8 @@ class ScheduleOptimizer:
 
                     if shift_wo:
                         self.model.Add(sum(shift_wo) <= max_manhours_per_day)
+
+    # -- Objective -----------------------------------------------------------
 
     def _add_loadbalance_objective(self, gain: float = 1.0) -> List:
         objective_terms: List = []
@@ -238,6 +246,8 @@ class ScheduleOptimizer:
         maximize_terms = self._add_maximize_objective()
         return sum(maximize_terms + balance_terms)
 
+    # -- Result --------------------------------------------------------------
+
     def _build_schedule(
         self, solver: cp_model.CpSolver, solver_status: int
     ) -> Schedule:
@@ -259,10 +269,21 @@ class ScheduleOptimizer:
         )
 
 
+# ---------------------------------------------------------------------------
+# Public API
+# ---------------------------------------------------------------------------
+
+
 def optimize_schedule(
-    work_orders: List[WorkOrder], start_date: Optional[date] = None,
+    work_orders: List[WorkOrder],
+    start_date: Optional[date] = None,
     hints: Optional[Dict[str, Tuple[date, str, bool]]] = None,
     objective_gains: Optional[Dict[str, float]] = None,
 ) -> Schedule:
     """Run the schedule optimizer and return the resulting schedule."""
-    return ScheduleOptimizer(work_orders=work_orders, start_date=start_date, hints=hints, objective_gains=objective_gains).optimize()
+    return ScheduleOptimizer(
+        work_orders=work_orders,
+        start_date=start_date,
+        hints=hints,
+        objective_gains=objective_gains,
+    ).optimize()

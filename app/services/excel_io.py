@@ -1,10 +1,12 @@
+"""Backlog fetch, filtering, JSON persistence, and schedule Excel export."""
+
 from __future__ import annotations
 
-from datetime import date, timedelta
-from typing import List, Optional
 import json
 import re
+from datetime import date, timedelta
 from pathlib import Path
+from typing import List, Optional
 
 import pandas as pd
 from openpyxl import Workbook
@@ -14,8 +16,12 @@ from app.services.cloud_backlog_client import CloudBacklogClient
 from app.utils.date_utils import get_next_monday
 
 
-# Default scheduling horizon (days); used for filtering backlog to manageable size.
 HORIZON_DAYS = 7
+
+
+# ---------------------------------------------------------------------------
+# Parsing helpers
+# ---------------------------------------------------------------------------
 
 
 def _parse_priority(
@@ -66,6 +72,11 @@ def _get_wo_age(value: pd.Timestamp | date) -> int:
     return (date.today() - value_date).days
 
 
+# ---------------------------------------------------------------------------
+# Backlog filtering
+# ---------------------------------------------------------------------------
+
+
 def load_and_filter(
     df: pd.DataFrame,
     start_date: date,
@@ -111,6 +122,11 @@ def load_and_filter(
     return filtered
 
 
+# ---------------------------------------------------------------------------
+# Backlog fetch
+# ---------------------------------------------------------------------------
+
+
 def fetch_backlog(
     start_date: Optional[date] = None,
     horizon_days: Optional[int] = None,
@@ -126,12 +142,9 @@ def fetch_backlog(
 
     work_orders: List[WorkOrder] = []
     for _, row in df.iterrows():
-
-        # EAM Export format column mapping
         wo_id = str(row.get("Work Order", ""))
         description = str(row.get("Description", ""))
 
-        # Duration in hours, allow fractional (e.g., 0.5 h)
         duration_raw = row.get("Estimated Hours", 0.0)
         if pd.isna(duration_raw):
             duration_hours = 0.5
@@ -159,7 +172,6 @@ def fetch_backlog(
         dept_raw = row.get("Department", "")
         dept = str(dept_raw).strip() if not pd.isna(dept_raw) else ""
 
-        # Safety or EHS get grouped with safety flag
         safety_raw = row.get("Safety", "")
         class_raw = row.get("Class", "")
 
@@ -168,14 +180,12 @@ def fetch_backlog(
         priority = _parse_priority(
             row.get("Priority", ""), wo_type=wo_type, safety=safety)
 
-        # Parse due date
         schedule_date_raw = row.get("Sched. Start Date")
         if pd.isna(schedule_date_raw):
             schedule_date = None
         else:
             schedule_date = pd.to_datetime(schedule_date_raw).date()
 
-        # Skip rows with missing essential data
         if not wo_id or duration_hours <= 0 or not trade:
             continue
 
@@ -203,7 +213,6 @@ def fetch_backlog(
             )
         )
 
-    # Persist parsed backlog to JSON for later retrieval
     try:
         base_dir = Path(__file__).resolve().parents[2]
         json_dir = base_dir / "data" / "schedules"
@@ -236,6 +245,11 @@ def fetch_backlog(
         pass
 
     return work_orders
+
+
+# ---------------------------------------------------------------------------
+# JSON persistence
+# ---------------------------------------------------------------------------
 
 
 def get_backlog_from_json() -> List[WorkOrder]:
@@ -285,10 +299,16 @@ def get_backlog_from_json() -> List[WorkOrder]:
     return work_orders
 
 
+# ---------------------------------------------------------------------------
+# Excel export
+# ---------------------------------------------------------------------------
+
+
 def build_schedule_workbook(
     schedule: Schedule,
     work_orders: Optional[List[WorkOrder]] = None,
 ) -> Workbook:
+    """Build an .xlsx workbook from a Schedule and its work orders."""
     wb = Workbook()
     ws = wb.active
     ws.title = "Schedule"

@@ -12,6 +12,11 @@ from app.models.shift import Shift
 DEFAULT_SHIFTS_FILE = Path("data/shifts.json")
 
 
+# ---------------------------------------------------------------------------
+# File I/O
+# ---------------------------------------------------------------------------
+
+
 def ensure_data_directory() -> Path:
     """Ensure the data directory exists."""
     data_dir = DEFAULT_SHIFTS_FILE.parent
@@ -20,14 +25,7 @@ def ensure_data_directory() -> Path:
 
 
 def load_shifts(shifts_file: Optional[Path] = None) -> List[Shift]:
-    """Load shifts from JSON file.
-
-    Args:
-        shifts_file: Path to JSON file. If None, uses default location.
-
-    Returns:
-        List of Shift objects.
-    """
+    """Load shifts from JSON file, sorted by trade."""
     if shifts_file is None:
         shifts_file = DEFAULT_SHIFTS_FILE
 
@@ -44,12 +42,7 @@ def load_shifts(shifts_file: Optional[Path] = None) -> List[Shift]:
 
 
 def save_shifts(shifts: List[Shift], shifts_file: Optional[Path] = None) -> None:
-    """Save shifts to JSON file.
-
-    Args:
-        shifts: List of Shift objects to save.
-        shifts_file: Path to JSON file. If None, uses default location.
-    """
+    """Save shifts to JSON file."""
     if shifts_file is None:
         shifts_file = DEFAULT_SHIFTS_FILE
 
@@ -61,18 +54,15 @@ def save_shifts(shifts: List[Shift], shifts_file: Optional[Path] = None) -> None
         json.dump(data, f, indent=2, ensure_ascii=False)
 
 
+# ---------------------------------------------------------------------------
+# CRUD
+# ---------------------------------------------------------------------------
+
+
 def get_shift_by_trade(
     trade: str, shifts_file: Optional[Path] = None
 ) -> Optional[Shift]:
-    """Get a shift by trade name.
-
-    Args:
-        trade: Trade name to search for.
-        shifts_file: Path to JSON file. If None, uses default location.
-
-    Returns:
-        Shift object if found, None otherwise.
-    """
+    """Return the Shift for *trade*, or None if not found."""
     shifts = load_shifts(shifts_file)
     for shift in shifts:
         if shift.trade == trade:
@@ -81,17 +71,8 @@ def get_shift_by_trade(
 
 
 def add_shift(shift: Shift, shifts_file: Optional[Path] = None) -> None:
-    """Add a new shift to the JSON file.
-
-    Args:
-        shift: Shift object to add.
-        shifts_file: Path to JSON file. If None, uses default location.
-
-    Raises:
-        ValueError: If a shift with the same trade already exists.
-    """
+    """Add a new shift; raises ValueError if the trade already exists."""
     shifts = load_shifts(shifts_file)
-    # Check if shift with same trade already exists
     if any(s.trade == shift.trade for s in shifts):
         raise ValueError(f"Shift with trade '{shift.trade}' already exists")
     shifts.append(shift)
@@ -101,16 +82,7 @@ def add_shift(shift: Shift, shifts_file: Optional[Path] = None) -> None:
 def update_shift(
     trade: str, updated_shift: Shift, shifts_file: Optional[Path] = None
 ) -> None:
-    """Update an existing shift by trade name.
-
-    Args:
-        trade: Trade name of the shift to update.
-        updated_shift: Updated Shift object.
-        shifts_file: Path to JSON file. If None, uses default location.
-
-    Raises:
-        ValueError: If shift with the given trade is not found.
-    """
+    """Replace the shift for *trade*; raises ValueError if not found."""
     shifts = load_shifts(shifts_file)
     found = False
     for i, shift in enumerate(shifts):
@@ -124,15 +96,7 @@ def update_shift(
 
 
 def delete_shift(trade: str, shifts_file: Optional[Path] = None) -> None:
-    """Delete a shift by trade name.
-
-    Args:
-        trade: Trade name of the shift to delete.
-        shifts_file: Path to JSON file. If None, uses default location.
-
-    Raises:
-        ValueError: If shift with the given trade is not found.
-    """
+    """Delete the shift for *trade*; raises ValueError if not found."""
     shifts = load_shifts(shifts_file)
     original_count = len(shifts)
     shifts = [s for s in shifts if s.trade != trade]
@@ -142,12 +106,5 @@ def delete_shift(trade: str, shifts_file: Optional[Path] = None) -> None:
 
 
 def get_all_shifts(shifts_file: Optional[Path] = None) -> List[Shift]:
-    """Get all shifts.
-
-    Args:
-        shifts_file: Path to JSON file. If None, uses default location.
-
-    Returns:
-        List of all Shift objects.
-    """
+    """Return all configured shifts."""
     return load_shifts(shifts_file)
