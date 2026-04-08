@@ -15,13 +15,7 @@
     if (form) {
       form.addEventListener("submit", async (event) => {
         event.preventDefault();
-        const fileInput = document.getElementById("backlog");
-        if (!fileInput || !fileInput.files.length) {
-          alert("Please choose a backlog .xlsx file.");
-          return;
-        }
         const fd = new FormData();
-        fd.append("backlog_file", fileInput.files[0]);
         // If there is a buildHintsPayload function, build the hints payload
         if (SchedulePage.buildHintsPayload) {
           // Build the hints payload

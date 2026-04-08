@@ -9,7 +9,7 @@ from app.services.shift_service import (
     update_shift,
 )
 from app.services.optimizer import optimize_schedule
-from app.services.excel_io import parse_backlog_from_excel
+from app.services.excel_io import fetch_backlog
 from app.services.cloud_backlog_client import CloudBacklogClient, CloudBacklogError
 from app.models.domain import Assignment, Schedule, WorkOrder
 from app.models.shift import Shift
@@ -99,7 +99,7 @@ def debug_patch_cloud_work_order():
         trade="ELEC",
     )
     try:
-        data, response = CloudBacklogClient(settings=settings).patch_eam_schedule_data(
+        result = CloudBacklogClient(settings=settings).patch_eam_schedule_data(
             wo, schedule
         )
     except CloudBacklogError as e:
@@ -109,11 +109,7 @@ def debug_patch_cloud_work_order():
             snippet = (r.text or "")[:500]
             print(f"HTTP {r.status_code} — body (truncated): {snippet}")
         return
-    print(f"HTTP {response.status_code}")
-    try:
-        text = json.dumps(data, indent=2, default=str)
-    except TypeError:
-        text = str(data)
+    text = json.dumps(result, indent=2, default=str)
     if len(text) > _DEBUG_BACKLOG_PREVIEW_CHARS:
         text = text[:_DEBUG_BACKLOG_PREVIEW_CHARS] + "\n... [truncated]"
     print(text)
@@ -220,21 +216,12 @@ def test_shift_crud():
 
 
 def test_work_order_parsing():
-    """Test work order parsing from Excel."""
+    """Test work order fetching from EAM API."""
     print_section("Testing Work Order Parsing")
 
-    sample_file = Path("samples/EAMExport.xlsx")
-    if not sample_file.exists():
-        print(f"   ⚠ Sample file not found: {sample_file}")
-        print("   Skipping Excel parsing test")
-        return
-
     try:
-        with open(sample_file, "rb") as f:
-            xlsx_bytes = f.read()
-
-        work_orders = parse_backlog_from_excel(xlsx_bytes)
-        print(f"   ✓ Parsed {len(work_orders)} work orders from Excel")
+        work_orders = fetch_backlog()
+        print(f"   ✓ Fetched {len(work_orders)} work orders from API")
 
         if work_orders:
             print("\n   Sample work orders:")
@@ -255,29 +242,21 @@ def test_work_order_parsing():
 
 
 def test_optimizer_with_excel_backlog():
-    """Test optimize_schedule using work orders from parse_backlog_from_excel(samples/EAMExport.xlsx)."""
-    default_sample = "samples/EAMExport.xlsx"
-    sample_path = os.environ.get("SAMPLE_EXCEL", default_sample)
+    """Test optimize_schedule using work orders from EAM API."""
     output_csv = os.environ.get("OUTPUT_SCHEDULE_CSV", "").strip()
-    print_section(f"Testing Optimizer with Excel Backlog ({sample_path})")
-
-    sample_file = Path(sample_path)
-    if not sample_file.exists():
-        print(f"   ✗ Sample file not found: {sample_file}")
-        return
+    print_section("Testing Optimizer with API Backlog")
 
     try:
-        xlsx_bytes = sample_file.read_bytes()
         start_date = get_next_monday()
-        work_orders = parse_backlog_from_excel(xlsx_bytes, start_date=start_date)
+        work_orders = fetch_backlog(start_date=start_date)
     except Exception as e:
-        print(f"   ✗ Error loading/parsing Excel: {e}")
+        print(f"   ✗ Error fetching backlog: {e}")
         import traceback
 
         traceback.print_exc()
         return
 
-    print(f"   Loaded {len(work_orders)} work orders from Excel")
+    print(f"   Loaded {len(work_orders)} work orders from API")
     if not work_orders:
         print("   ⚠ No work orders to optimize")
         return

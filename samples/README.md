@@ -18,14 +18,14 @@ Sample work order backlog exported from an EAM (Enterprise Asset Management) sys
 - **Sched Start Date**: Scheduled start date (used as due date for optimization)
 - **Department**: Department code
 - **Safety**: Safety flag (Yes/No)
-- **Persons Required**: Number of people needed
-- **Estimated Hs**: Estimated hours (used as duration_hours)
+- **People Required**: Number of people needed
+- **Estimated Hours**: Estimated hours (used as duration_hours)
 - **Trade**: Trade/skill required
 - **Class**: Classification
 
 The parser automatically detects this format and maps:
 - `Work Order` → `id`
-- `Estimated Hs` → `duration_hours`
+- `Estimated Hours` → `duration_hours`
 - `Priority` → `priority` (converted from text to numeric: 1-Critical=1, 2-Urgent=2, 3-First Opportunity=3, etc.)
 - `Sched Start Date` → `due_date`
 - `Description` → `description`

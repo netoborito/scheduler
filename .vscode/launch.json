@@ -12,38 +12,6 @@
       "justMyCode": false
     },
     {
-      "name": "FastAPI: run app (no reload)",
-      "type": "debugpy",
-      "request": "launch",
-      "module": "uvicorn",
-      "args": ["app.main:app", "--port", "8000"],
-      "cwd": "${workspaceFolder}",
-      "python": "${workspaceFolder}/.venv/Scripts/python.exe",
-      "justMyCode": false
-    },
-    {
-      "name": "Optimizer: synthetic work orders",
-      "type": "debugpy",
-      "request": "launch",
-      "program": "${workspaceFolder}/debug.py",
-      "args": ["optimize"],
-      "cwd": "${workspaceFolder}",
-      "python": "${workspaceFolder}/.venv/Scripts/python.exe",
-      "console": "integratedTerminal",
-      "justMyCode": false
-    },
-    {
-      "name": "Optimizer: Excel backlog (samples/EAMExport.xlsx)",
-      "type": "debugpy",
-      "request": "launch",
-      "program": "${workspaceFolder}/debug.py",
-      "args": ["optimize-excel"],
-      "cwd": "${workspaceFolder}",
-      "python": "${workspaceFolder}/.venv/Scripts/python.exe",
-      "console": "integratedTerminal",
-      "justMyCode": false
-    },
-    {
       "name": "Debug: interactive menu",
       "type": "debugpy",
       "request": "launch",
@@ -70,17 +38,6 @@
       "request": "launch",
       "program": "${workspaceFolder}/debug.py",
       "args": ["shift"],
-      "cwd": "${workspaceFolder}",
-      "python": "${workspaceFolder}/.venv/Scripts/python.exe",
-      "console": "integratedTerminal",
-      "justMyCode": false
-    },
-    {
-      "name": "Debug: Excel I/O",
-      "type": "debugpy",
-      "request": "launch",
-      "program": "${workspaceFolder}/debug.py",
-      "args": ["excel"],
       "cwd": "${workspaceFolder}",
       "python": "${workspaceFolder}/.venv/Scripts/python.exe",
       "console": "integratedTerminal",

@@ -1,4 +1,4 @@
-"""HTTP client for the cloud work-order backlog (REST / grid endpoint)."""
+"""HTTP client for EAM Rest endpoints"""
 
 from __future__ import annotations
 
@@ -12,20 +12,12 @@ import httpx
 import pandas as pd
 
 from app.config import BacklogIntegrationSettings, get_backlog_integration_settings
-from app.models.domain import Assignment, Schedule, WorkOrder
+from app.models.domain import Schedule, WorkOrder
 
 
-def _assignment_for_work_order(wo: WorkOrder, schedule: Schedule) -> Assignment:
-    """Prefer assignment whose ``work_order_id`` matches ``wo.id``; else index ``wo.id``."""
-    for a in schedule.assignments:
-        if a.work_order_id == str(wo.id):
-            return a
-    if 0 <= wo.id < len(schedule.assignments):
-        return schedule.assignments[wo.id]
-    raise CloudBacklogError(
-        f"No schedule assignment for work order id {wo.id} "
-        f"(list length {len(schedule.assignments)})"
-    )
+# ---------------------------------------------------------------------------
+# Exception
+# ---------------------------------------------------------------------------
 
 
 class CloudBacklogError(Exception):
@@ -39,6 +31,11 @@ class CloudBacklogError(Exception):
     ) -> None:
         super().__init__(message)
         self.response = response
+
+
+# ---------------------------------------------------------------------------
+# Backlog helpers
+# ---------------------------------------------------------------------------
 
 
 def _grid_list_request_body(cfg: BacklogIntegrationSettings) -> dict[str, Any]:
@@ -58,37 +55,44 @@ def _grid_list_request_body(cfg: BacklogIntegrationSettings) -> dict[str, Any]:
     }
 
 
-def _cell_values_from_row(row: dict[str, Any]) -> tuple[Any, list[str]]:
-    rid = row.get("id")
-    cells = row.get("D") or []
-    values: list[str] = []
-    for cell in cells:
-        if isinstance(cell, dict):
-            values.append("" if cell.get("value") is None else str(cell["value"]))
-        else:
-            values.append("" if cell is None else str(cell))
-    return rid, values
-
-
 def _parse_eam_payload_to_dataframe(data: dict[str, Any]) -> pd.DataFrame:
     """Build a DataFrame from json payload"""
-    grid = data["Result"]["ResultData"]["GRID"]
-    rows = grid["DATA"]["ROW"]
-    columns = [f["label"] for f in grid["FIELDS"]["FIELD"]]
-    matrix = [
-        [str(c.get("value", "") if isinstance(c, dict) else (c or "")) for c in row.get("D", [])]
-        for row in rows
-    ]
-    return pd.DataFrame(matrix, columns=columns)
+    grid = data["Result"]["ResultData"]["DATARECORD"]
+    columns = [f["FIELDLABEL"] for f in grid[0]["DATAFIELD"]]
+    matrix = [[f["FIELDVALUE"] for f in row["DATAFIELD"]] for row in grid]
+    df = pd.DataFrame(matrix, columns=columns)
+    df = df.loc[:, ~df.columns.duplicated(keep="last")]
+    return df
 
 
-def _format_backlog_df(df: pd.DataFrame) -> pd.DataFrame:
-    """Light formatting on string cells (e.g. strip whitespace)."""
-    out = df.copy()
-    for col in out.columns:
-        if out[col].dtype == object:
-            out[col] = out[col].map(lambda x: x.strip() if isinstance(x, str) else x)
-    return out
+# ---------------------------------------------------------------------------
+# PATCH helper
+# ---------------------------------------------------------------------------
+
+
+def _generate_date_block(wo: WorkOrder, schedule: Schedule) -> dict[str, Any]:
+    """Build EAM date block for a work order's scheduled date."""
+    assignment = next(a for a in schedule.assignments if a.work_order_id == str(wo.id))
+    schedule_date = schedule.start_date + timedelta(days=assignment.day_offset)
+    year_ux = int(
+        datetime(schedule_date.year, 1, 1, tzinfo=timezone.utc).timestamp() * 1000
+    )
+    return {
+        "YEAR": year_ux,
+        "MONTH": schedule_date.month,
+        "DAY": schedule_date.day,
+        "HOUR": 7,
+        "MINUTE": 0,
+        "SECOND": 0,
+        "SUBSECOND": 0,
+        "TIMEZONE": "-0500",
+        "qualifier": "OTHER",
+    }
+
+
+# ---------------------------------------------------------------------------
+# Client
+# ---------------------------------------------------------------------------
 
 
 class CloudBacklogClient:
@@ -111,7 +115,7 @@ class CloudBacklogClient:
         }
 
     def _request_json_with_response(
-        self, method: str, url: str, json_body: dict[str, Any]
+        self, method: str, url: str, json_body: dict[str, Any] | None = None
     ) -> tuple[Any, httpx.Response]:
         cfg = self._settings
         try:
@@ -123,22 +127,37 @@ class CloudBacklogClient:
                     json=json_body,
                 )
         except httpx.RequestError as e:
-            raise CloudBacklogError(f"Backlog request failed: {e}") from e
+            raise CloudBacklogError(f"EAM request failed: {e}") from e
 
         if not response.is_success:
             snippet = (response.text or "")[:500]
             raise CloudBacklogError(
-                f"Backlog HTTP {response.status_code}: {snippet}",
+                f"EAM HTTP {response.status_code}: {snippet}",
                 response=response,
             )
         try:
             data = response.json()
         except ValueError as e:
             raise CloudBacklogError(
-                "Backlog response is not valid JSON",
+                "EAM response is not valid JSON",
                 response=response,
             ) from e
         return data, response
+
+    # -- Backlog fetch ------------------------------------------------------
+
+    def fetch_backlog(self) -> pd.DataFrame:
+        """POST and return the backlog as a formatted DataFrame, or raise ``CloudBacklogError``."""
+        cfg = self._settings
+        body = _grid_list_request_body(cfg)
+        url = f"{cfg.rest_url}{cfg.backlog_endpoint}"
+
+        data, _ = self._request_json_with_response("POST", url, body)
+        df = _parse_eam_payload_to_dataframe(data)
+
+        return df
+
+    # -- Work order PATCH ---------------------------------------------------
 
     def _work_order_url(self, wo_id: str | int) -> str:
         cfg = self._settings
@@ -160,64 +179,12 @@ class CloudBacklogClient:
         self,
         wo: WorkOrder,
         schedule: Schedule,
-    ) -> Any:
+    ) -> httpx.Response:
         """PATCH work order schedule data to EAM."""
-        assignment = _assignment_for_work_order(wo, schedule)
-        schedule_date = schedule.start_date + timedelta(days=assignment.day_offset)
-
-        # put schedule date in desired format
-        year = datetime(schedule_date.year, 1, 1, tzinfo=timezone.utc)
-        year_ux = int(year.timestamp() * 1000)
-
-        dateblock = {
-            "YEAR": year_ux,
-            "MONTH": schedule_date.month,
-            "DAY": schedule_date.day,
-            "HOUR": 7,
-            "MINUTE": 0,
-            "SECOND": 0,
-            "SUBSECOND": 0,
-            "TIMEZONE": "-0500",
-            "qualifier": "OTHER",
-        }
-
-        # build patch body
-        body = self._build_schedule_data_patch_payload(
-            dateblock=dateblock,
-            wo_id=wo.id,
-        )
-
-        # patch work order
+        dateblock = _generate_date_block(wo, schedule)
+        body = self._build_schedule_data_patch_payload(dateblock=dateblock, wo_id=wo.id)
         url = self._work_order_url(wo.id)
-        print(
-            json.dumps(
-                {
-                    "method": "PATCH",
-                    "url": url,
-                    "headers": self._headers(),
-                    "body": body,
-                },
-                indent=2,
-            )
-        )
-        data, response = self._request_json_with_response("PATCH", url, body)
 
-        return data, response
+        _, response = self._request_json_with_response("PATCH", url, body)
 
-    def fetch_backlog(self) -> pd.DataFrame:
-        """POST and return the backlog as a formatted DataFrame, or raise ``CloudBacklogError``."""
-        cfg = self._settings
-        url = self._settings.rest_url + self._settings.backlog_endpoint
-        body = _grid_list_request_body(cfg)
-
-        data, response = self._request_json_with_response("POST", url, body)
-        df = _parse_eam_payload_to_dataframe(data)
-        df = _format_backlog_df(df)
-
-        debug_csv = os.environ.get("BACKLOG_DEBUG_CSV", "").strip()
-        if debug_csv:
-            dest = Path(debug_csv)
-            dest.parent.mkdir(parents=True, exist_ok=True)
-            df.to_csv(dest, index=False)
-
-        return df
+        return response.json()

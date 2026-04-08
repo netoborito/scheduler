@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from datetime import date, timedelta
-from io import BytesIO
 from typing import List, Optional
 import json
 import re
@@ -11,6 +10,7 @@ import pandas as pd
 from openpyxl import Workbook
 
 from app.models.domain import WorkOrder, Schedule
+from app.services.cloud_backlog_client import CloudBacklogClient
 from app.utils.date_utils import get_next_monday
 
 
@@ -111,34 +111,12 @@ def load_and_filter(
     return filtered
 
 
-def parse_backlog_from_excel(
-    xlsx_bytes: bytes,
+def fetch_backlog(
     start_date: Optional[date] = None,
     horizon_days: Optional[int] = None,
 ) -> List[WorkOrder]:
-    """Parse work order backlog from Excel and filter by scheduling horizon.
-
-    Reads the Excel file, applies load_and_filter() to keep only work orders
-    relevant to the horizon, then builds WorkOrder list from the filtered rows.
-
-    Expects EAM export format with columns:
-    - Work Order: Work order ID
-    - Description: Work order description
-    - Estimated Hs: Estimated hours (duration, converted to int - no fractional hours)
-    - Priority: Priority text (e.g., "1-Critical", "2-Urgent/Scheduled")
-    - Sched Start Date: Scheduled start date (used as due date)
-    - Trade: Required trade/resource type for this work order
-    - Type: Work order type (e.g. "Corrective")
-    - Safety: Safety flag (Yes/No or boolean)
-    - Class: Classification
-    - Assigned To: Assigned technician
-    - Date Created: Date created
-    - Department: Department
-    - Equipment: Equipment
-    - Persons Required: Number of people required
-    """
-    buffer = BytesIO(xlsx_bytes)
-    df = pd.read_excel(buffer)
+    """Fetch work order backlog from EAM API and filter by scheduling horizon."""
+    df = CloudBacklogClient().fetch_backlog()
 
     if start_date is None:
         start_date = get_next_monday()
@@ -154,7 +132,7 @@ def parse_backlog_from_excel(
         description = str(row.get("Description", ""))
 
         # Duration in hours, allow fractional (e.g., 0.5 h)
-        duration_raw = row.get("Estimated Hs", 0.0)
+        duration_raw = row.get("Estimated Hours", 0.0)
         if pd.isna(duration_raw):
             duration_hours = 0.5
         else:
@@ -171,7 +149,7 @@ def parse_backlog_from_excel(
         type_raw = row.get("Type", "")
         wo_type = str(type_raw).strip() if not pd.isna(type_raw) else ""
 
-        num_people_raw = row.get("Persons Required", 1)
+        num_people_raw = row.get("People Required", 1)
         num_people = int(num_people_raw) if not pd.isna(num_people_raw) else 1
 
         equipment_raw = row.get("Equipment", "")

@@ -64,3 +64,6 @@ samples/*.xlsx
 # Data files (keep shifts.json as template)
 data/*.json
 !data/shifts.json
+
+# Debug artifacts
+backlog.csv

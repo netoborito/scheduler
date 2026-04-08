@@ -1,4 +1,4 @@
-from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Body
+from fastapi import FastAPI, Form, HTTPException, Body
 from fastapi.responses import HTMLResponse, StreamingResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -9,7 +9,7 @@ from datetime import date
 from typing import List, Optional
 import json
 
-from .services.excel_io import parse_backlog_from_excel, build_schedule_workbook
+from .services.excel_io import fetch_backlog, build_schedule_workbook
 from .services.optimizer import optimize_schedule
 from .utils.date_utils import get_next_monday
 from .models.shift import Shift
@@ -61,7 +61,6 @@ async def index(request: Request) -> HTMLResponse:
 
 @app.post("/api/optimize")
 async def api_optimize(
-    backlog_file: UploadFile = File(...),
     hints_json: Optional[str] = Form(None),
 ) -> dict:
 
@@ -78,9 +77,7 @@ async def api_optimize(
 
     start_date = get_next_monday()
 
-    # load backlog
-    backlog = await backlog_file.read()
-    work_orders = parse_backlog_from_excel(backlog, start_date=start_date)
+    work_orders = fetch_backlog(start_date=start_date)
 
     # optimize schedule
     schedule = optimize_schedule(

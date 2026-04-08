@@ -1,19 +1,22 @@
 """Tests for CloudBacklogClient."""
 
-from dataclasses import replace
 from datetime import date, datetime, timezone
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import httpx
 import pandas as pd
+import pytest
 
 from app.config import BacklogIntegrationSettings
 from app.models.domain import Assignment, Schedule, WorkOrder
-from app.services import cloud_backlog_client as cbc
-from app.services.cloud_backlog_client import CloudBacklogClient, CloudBacklogError
+from app.services.cloud_backlog_client import (
+    CloudBacklogClient,
+    CloudBacklogError,
+    _parse_eam_payload_to_dataframe,
+)
 
 
-def _sample_settings() -> BacklogIntegrationSettings:
+def _settings() -> BacklogIntegrationSettings:
     return BacklogIntegrationSettings(
         rest_url="http://127.0.0.1:9",
         api_key="secret",
@@ -22,264 +25,187 @@ def _sample_settings() -> BacklogIntegrationSettings:
         organization="Org",
         grid_id=100195,
         dataspy_id=42,
-        backlog_endpoint="/backlog",
-        schedule_endpoint="api/workorders",
+        backlog_endpoint="/grids",
+        schedule_endpoint="/workorders",
     )
 
 
-def _eam_payload_two_rows() -> dict:
+def _eam_payload() -> dict:
+    """Minimal DATARECORD/DATAFIELD payload matching current parser."""
     return {
         "Result": {
             "ResultData": {
-                "GRID": {
-                    "DATA": {
-                        "ROW": [
-                            {
-                                "id": 1,
-                                "D": [
-                                    {"value": "a", "n": 0},
-                                    {"value": "b", "n": 1},
-                                ],
-                            },
-                            {"id": 2, "D": [{"value": "c", "n": 0}]},
+                "DATARECORD": [
+                    {
+                        "DATAFIELD": [
+                            {"FIELDLABEL": "Work Order", "FIELDVALUE": "1001"},
+                            {"FIELDLABEL": "Trade", "FIELDVALUE": "ELEC"},
                         ]
-                    }
-                }
+                    },
+                    {
+                        "DATAFIELD": [
+                            {"FIELDLABEL": "Work Order", "FIELDVALUE": "1002"},
+                            {"FIELDLABEL": "Trade", "FIELDVALUE": "MECH"},
+                        ]
+                    },
+                ]
             }
         }
     }
 
 
-@patch("app.services.cloud_backlog_client.httpx.Client")
-def test_fetch_backlog_returns_dataframe(mock_client_cls, monkeypatch):
-    monkeypatch.setattr(cbc, "BACKLOG_CSV_COLUMNS", ("column_0", "column_1"))
-    mock_response = MagicMock(spec=httpx.Response)
-    mock_response.is_success = True
-    mock_response.json.return_value = _eam_payload_two_rows()
-
-    mock_session = MagicMock()
-    mock_session.request.return_value = mock_response
-    mock_session.__enter__ = MagicMock(return_value=mock_session)
-    mock_session.__exit__ = MagicMock(return_value=False)
-    mock_client_cls.return_value = mock_session
-
-    client = CloudBacklogClient(settings=_sample_settings())
-    result = client.fetch_backlog()
-
-    assert isinstance(result, pd.DataFrame)
-    assert list(result.columns) == ["column_0", "column_1"]
-    assert result.iloc[0].tolist() == ["a", "b"]
-    assert result.iloc[1].tolist() == ["c", ""]
-    mock_client_cls.assert_called_once_with(timeout=5)
-    mock_session.request.assert_called_once()
-    args, kwargs = mock_session.request.call_args
-    assert args[0] == "POST"
-    assert args[1] == "http://127.0.0.1:9/backlog"
-    assert kwargs["headers"]["X-API-Key"] == "secret"
-    posted = kwargs["json"]
-    assert posted["GRID"]["GRID_ID"] == 100195
-    assert posted["DATASPY"]["DATASPY_ID"] == 42
-    assert posted["REQUEST_TYPE"] == "LIST.DATA_ONLY.STORED"
+def _mock_httpx_session(mock_client_cls, mock_response):
+    session = MagicMock()
+    session.request.return_value = mock_response
+    session.__enter__ = MagicMock(return_value=session)
+    session.__exit__ = MagicMock(return_value=False)
+    mock_client_cls.return_value = session
+    return session
 
 
-@patch("app.services.cloud_backlog_client.httpx.Client")
-def test_fetch_backlog_non_eam_json_raises(mock_client_cls, monkeypatch):
-    monkeypatch.setattr(cbc, "BACKLOG_CSV_COLUMNS", ("column_0", "column_1"))
-    mock_response = MagicMock(spec=httpx.Response)
-    mock_response.is_success = True
-    mock_response.json.return_value = {"rows": [{"id": 1}]}
-
-    mock_session = MagicMock()
-    mock_session.request.return_value = mock_response
-    mock_session.__enter__ = MagicMock(return_value=mock_session)
-    mock_session.__exit__ = MagicMock(return_value=False)
-    mock_client_cls.return_value = mock_session
-
-    try:
-        CloudBacklogClient(settings=_sample_settings()).fetch_backlog()
-    except CloudBacklogError as e:
-        assert "eam grid rows" in str(e).lower()
-        assert e.response is mock_response
-    else:
-        raise AssertionError("expected CloudBacklogError")
+# ---------------------------------------------------------------------------
+# fetch_backlog
+# ---------------------------------------------------------------------------
 
 
-@patch("app.services.cloud_backlog_client.httpx.Client")
-def test_fetch_backlog_writes_debug_csv_when_env_set(
-    mock_client_cls, tmp_path, monkeypatch
-):
-    monkeypatch.setattr(cbc, "BACKLOG_CSV_COLUMNS", ("column_0", "column_1"))
-    out = tmp_path / "debug.csv"
-    monkeypatch.setenv("BACKLOG_DEBUG_CSV", str(out))
-    mock_response = MagicMock(spec=httpx.Response)
-    mock_response.is_success = True
-    mock_response.json.return_value = _eam_payload_two_rows()
-
-    mock_session = MagicMock()
-    mock_session.request.return_value = mock_response
-    mock_session.__enter__ = MagicMock(return_value=mock_session)
-    mock_session.__exit__ = MagicMock(return_value=False)
-    mock_client_cls.return_value = mock_session
-
-    CloudBacklogClient(settings=_sample_settings()).fetch_backlog()
-
-    assert out.is_file()
-    text = out.read_text(encoding="utf-8")
-    assert "column_0" in text and "column_1" in text
+@pytest.fixture()
+def ok_response():
+    r = MagicMock(spec=httpx.Response)
+    r.is_success = True
+    r.json.return_value = _eam_payload()
+    return r
 
 
-@patch("app.services.cloud_backlog_client.httpx.Client")
-def test_fetch_backlog_skips_csv_when_debug_unset(
-    mock_client_cls, tmp_path, monkeypatch
-):
-    monkeypatch.setattr(cbc, "BACKLOG_CSV_COLUMNS", ("column_0", "column_1"))
-    monkeypatch.delenv("BACKLOG_DEBUG_CSV", raising=False)
-    would_be = tmp_path / "should_not_exist.csv"
+def test_fetch_backlog_returns_dataframe(ok_response, monkeypatch):
+    with monkeypatch.context() as m:
+        mock_cls = MagicMock()
+        m.setattr("app.services.cloud_backlog_client.httpx.Client", mock_cls)
+        session = _mock_httpx_session(mock_cls, ok_response)
 
-    mock_response = MagicMock(spec=httpx.Response)
-    mock_response.is_success = True
-    mock_response.json.return_value = _eam_payload_two_rows()
+        df = CloudBacklogClient(settings=_settings()).fetch_backlog()
 
-    mock_session = MagicMock()
-    mock_session.request.return_value = mock_response
-    mock_session.__enter__ = MagicMock(return_value=mock_session)
-    mock_session.__exit__ = MagicMock(return_value=False)
-    mock_client_cls.return_value = mock_session
+    assert isinstance(df, pd.DataFrame)
+    assert list(df.columns) == ["Work Order", "Trade"]
+    assert df.iloc[0].tolist() == ["1001", "ELEC"]
+    assert df.iloc[1].tolist() == ["1002", "MECH"]
 
-    CloudBacklogClient(settings=_sample_settings()).fetch_backlog()
-
-    assert not would_be.exists()
-
-
-@patch("app.services.cloud_backlog_client.httpx.Client")
-def test_fetch_backlog_raises_cloud_backlog_error_on_http_error(mock_client_cls):
-    mock_response = MagicMock(spec=httpx.Response)
-    mock_response.is_success = False
-    mock_response.status_code = 400
-    mock_response.text = "bad request"
-
-    mock_session = MagicMock()
-    mock_session.request.return_value = mock_response
-    mock_session.__enter__ = MagicMock(return_value=mock_session)
-    mock_session.__exit__ = MagicMock(return_value=False)
-    mock_client_cls.return_value = mock_session
-
-    client = CloudBacklogClient(settings=_sample_settings())
-    try:
-        client.fetch_backlog()
-    except CloudBacklogError as e:
-        assert e.response is mock_response
-        assert "400" in str(e)
-    else:
-        raise AssertionError("expected CloudBacklogError")
-
-
-@patch("app.services.cloud_backlog_client.httpx.Client")
-def test_fetch_backlog_raises_on_invalid_json(mock_client_cls):
-    mock_response = MagicMock(spec=httpx.Response)
-    mock_response.is_success = True
-    mock_response.json.side_effect = ValueError("not json")
-
-    mock_session = MagicMock()
-    mock_session.request.return_value = mock_response
-    mock_session.__enter__ = MagicMock(return_value=mock_session)
-    mock_session.__exit__ = MagicMock(return_value=False)
-    mock_client_cls.return_value = mock_session
-
-    try:
-        CloudBacklogClient(settings=_sample_settings()).fetch_backlog()
-    except CloudBacklogError as e:
-        assert "JSON" in str(e)
-        assert e.response is mock_response
-    else:
-        raise AssertionError("expected CloudBacklogError")
-
-
-@patch("app.services.cloud_backlog_client.httpx.Client")
-def test_fetch_backlog_wraps_request_error(mock_client_cls):
-    mock_session = MagicMock()
-    mock_session.__enter__ = MagicMock(return_value=mock_session)
-    mock_session.__exit__ = MagicMock(return_value=False)
-    mock_session.request.side_effect = httpx.ConnectError(
-        "simulated", request=MagicMock()
-    )
-    mock_client_cls.return_value = mock_session
-
-    try:
-        CloudBacklogClient(settings=_sample_settings()).fetch_backlog()
-    except CloudBacklogError as e:
-        assert "simulated" in str(e).lower() or "request failed" in str(e).lower()
-    else:
-        raise AssertionError("expected CloudBacklogError")
-
-
-@patch("app.services.cloud_backlog_client.httpx.Client")
-def test_patch_eam_schedule_data_sends_patch_to_workorders_url(mock_client_cls):
-    mock_response = MagicMock(spec=httpx.Response)
-    mock_response.is_success = True
-    mock_response.json.return_value = {"ok": True}
-
-    mock_session = MagicMock()
-    mock_session.request.return_value = mock_response
-    mock_session.__enter__ = MagicMock(return_value=mock_session)
-    mock_session.__exit__ = MagicMock(return_value=False)
-    mock_client_cls.return_value = mock_session
-
-    start = date(2026, 1, 5)
-    wo = WorkOrder(
-        id=123,
-        description="t",
-        duration_hours=1.0,
-        priority=1,
-        schedule_date=start,
-        trade="ELEC",
-    )
-    schedule = Schedule(
-        assignments=[
-            Assignment(work_order_id="123", day_offset=0, resource_id="r"),
-        ],
-        horizon_days=7,
-        start_date=start,
-    )
-    data, _response = CloudBacklogClient(
-        settings=_sample_settings()
-    ).patch_eam_schedule_data(wo, schedule)
-
-    assert data == {"ok": True}
-    mock_session.request.assert_called_once()
-    args, kwargs = mock_session.request.call_args
-    assert args[0] == "PATCH"
-    assert args[1] == "http://127.0.0.1:9/api/workorders/123"
+    mock_cls.assert_called_once_with(timeout=5)
+    _, kwargs = session.request.call_args
     assert kwargs["headers"]["X-API-Key"] == "secret"
     body = kwargs["json"]
+    assert body["GRID"]["GRID_ID"] == 100195
+    assert body["DATASPY"]["DATASPY_ID"] == 42
+    assert body["REQUEST_TYPE"] == "LIST.HEAD_DATA.STORED"
+
+
+def test_fetch_backlog_raises_on_http_error(monkeypatch):
+    r = MagicMock(spec=httpx.Response)
+    r.is_success = False
+    r.status_code = 400
+    r.text = "bad request"
+
+    with monkeypatch.context() as m:
+        mock_cls = MagicMock()
+        m.setattr("app.services.cloud_backlog_client.httpx.Client", mock_cls)
+        _mock_httpx_session(mock_cls, r)
+
+        with pytest.raises(CloudBacklogError, match="400") as exc_info:
+            CloudBacklogClient(settings=_settings()).fetch_backlog()
+        assert exc_info.value.response is r
+
+
+def test_fetch_backlog_raises_on_invalid_json(monkeypatch):
+    r = MagicMock(spec=httpx.Response)
+    r.is_success = True
+    r.json.side_effect = ValueError("not json")
+
+    with monkeypatch.context() as m:
+        mock_cls = MagicMock()
+        m.setattr("app.services.cloud_backlog_client.httpx.Client", mock_cls)
+        _mock_httpx_session(mock_cls, r)
+
+        with pytest.raises(CloudBacklogError, match="JSON") as exc_info:
+            CloudBacklogClient(settings=_settings()).fetch_backlog()
+        assert exc_info.value.response is r
+
+
+def test_fetch_backlog_wraps_request_error(monkeypatch):
+    with monkeypatch.context() as m:
+        mock_cls = MagicMock()
+        m.setattr("app.services.cloud_backlog_client.httpx.Client", mock_cls)
+        session = MagicMock()
+        session.__enter__ = MagicMock(return_value=session)
+        session.__exit__ = MagicMock(return_value=False)
+        session.request.side_effect = httpx.ConnectError("simulated", request=MagicMock())
+        mock_cls.return_value = session
+
+        with pytest.raises(CloudBacklogError, match="EAM request failed"):
+            CloudBacklogClient(settings=_settings()).fetch_backlog()
+
+
+def test_parse_drops_duplicate_columns():
+    payload = {
+        "Result": {
+            "ResultData": {
+                "DATARECORD": [
+                    {
+                        "DATAFIELD": [
+                            {"FIELDLABEL": "Work Order", "FIELDVALUE": "1001"},
+                            {"FIELDLABEL": "Status", "FIELDVALUE": ""},
+                            {"FIELDLABEL": "Status", "FIELDVALUE": "Open - Ready to Schedule"},
+                        ]
+                    },
+                ]
+            }
+        }
+    }
+    df = _parse_eam_payload_to_dataframe(payload)
+
+    assert list(df.columns) == ["Work Order", "Status"]
+    assert df.iloc[0]["Status"] == "Open - Ready to Schedule"
+
+
+# ---------------------------------------------------------------------------
+# patch_eam_schedule_data
+# ---------------------------------------------------------------------------
+
+
+def test_patch_sends_correct_request(monkeypatch):
+    r = MagicMock(spec=httpx.Response)
+    r.is_success = True
+    r.json.return_value = {"ok": True}
+
+    with monkeypatch.context() as m:
+        mock_cls = MagicMock()
+        m.setattr("app.services.cloud_backlog_client.httpx.Client", mock_cls)
+        session = _mock_httpx_session(mock_cls, r)
+
+        start = date(2026, 1, 5)
+        wo = WorkOrder(
+            id=123, description="t", duration_hours=1.0,
+            priority=1, schedule_date=start, trade="ELEC",
+        )
+        schedule = Schedule(
+            assignments=[Assignment(work_order_id="123", day_offset=0, resource_id="r")],
+            horizon_days=7,
+            start_date=start,
+        )
+
+        result = CloudBacklogClient(settings=_settings()).patch_eam_schedule_data(wo, schedule)
+
+    assert result == {"ok": True}
+
+    args, kwargs = session.request.call_args
+    assert args[0] == "PATCH"
+    assert args[1] == "http://127.0.0.1:9/workorders/123%23AZP%20MOORESBORO"
+    assert kwargs["headers"]["X-API-Key"] == "secret"
+
+    body = kwargs["json"]
     assert body["WORKORDERID"]["JOBNUM"] == 123
-    expected_year_ux = int(
-        datetime(2026, 1, 1, tzinfo=timezone.utc).timestamp() * 1000
-    )
-    assert body["STARTDATE"]["year"] == expected_year_ux
-    assert body["STARTDATE"]["month"] == 1
-    assert body["STARTDATE"]["day"] == 5
-
-
-def test_patch_eam_schedule_data_raises_when_schedule_endpoint_missing():
-    s = replace(_sample_settings(), schedule_endpoint="")
-    start = date(2026, 1, 5)
-    wo = WorkOrder(
-        id=1,
-        description="t",
-        duration_hours=1.0,
-        priority=1,
-        schedule_date=start,
-        trade="ELEC",
-    )
-    schedule = Schedule(
-        assignments=[Assignment(work_order_id="1", day_offset=0, resource_id="r")],
-        horizon_days=7,
-        start_date=start,
-    )
-    try:
-        CloudBacklogClient(settings=s).patch_eam_schedule_data(wo, schedule)
-    except CloudBacklogError as e:
-        assert "SCHEDULE_ENDPOINT" in str(e)
-    else:
-        raise AssertionError("expected CloudBacklogError")
+    expected_year_ux = int(datetime(2026, 1, 1, tzinfo=timezone.utc).timestamp() * 1000)
+    assert body["STARTDATE"]["YEAR"] == expected_year_ux
+    assert body["STARTDATE"]["MONTH"] == 1
+    assert body["STARTDATE"]["DAY"] == 5
+    assert body["STARTDATE"]["HOUR"] == 7
+    assert body["STARTDATE"]["TIMEZONE"] == "-0500"
+    assert body["STARTDATE"]["qualifier"] == "OTHER"

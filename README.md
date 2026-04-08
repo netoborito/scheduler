@@ -6,7 +6,7 @@ This project generates optimized work schedules for an industrial maintenance te
 
 - **Backend (Python + FastAPI)**:
   - **Google OR-Tools** CP-SAT solver for daily/weekly schedule optimization.
-  - Work order backlog from `.xlsx` (EAM export format via `pandas` / `openpyxl`).
+  - Work order backlog from `.xlsx` (EAM export) or live from EAM REST API via `CloudBacklogClient`.
   - **Shift schedules** stored in `data/shifts.json`; parsed backlog can be cached in `data/json/backlog.json`.
   - REST API: upload backlog, run optimization, download schedule as `.xlsx` or JSON.
 
@@ -27,7 +27,7 @@ This project generates optimized work schedules for an industrial maintenance te
 - `app/`
   - `main.py` – FastAPI app, routes (optimize, shifts CRUD, health).
   - `models/` – `domain.py` (WorkOrder, Assignment, Schedule), `shift.py` (Shift).
-  - `services/` – `optimizer.py` (OR-Tools), `excel_io.py` (backlog/schedule Excel + JSON), `shift_service.py` (shifts persistence).
+  - `services/` – `optimizer.py` (OR-Tools), `excel_io.py` (backlog/schedule Excel + JSON), `cloud_backlog_client.py` (EAM REST: backlog fetch + work order PATCH), `shift_service.py` (shifts persistence).
   - `utils/` – `date_utils.py` (e.g. next Monday).
   - `templates/` – `index.html`, `shifts.html`.
   - `static/` – JS/CSS assets.
@@ -38,7 +38,7 @@ This project generates optimized work schedules for an industrial maintenance te
 
 ### Sample Data
 
-- **Backlog**: `samples/EAMExport.xlsx` – EAM export format (Work Order, Description, Estimated Hs, Priority, Trade, Type, Safety/Class, etc.). See `samples/README.md` for column details.
+- **Backlog**: `samples/EAMExport.xlsx` – EAM export format (Work Order, Description, Estimated Hours, Priority, Trade, Type, Safety/Class, etc.). See `samples/README.md` for column details.
 - **Shifts**: Define trades and active days in the **Shifts** UI or by editing `data/shifts.json`.
 
 ### Quick Start
@@ -77,13 +77,33 @@ This project generates optimized work schedules for an industrial maintenance te
 
 ### Testing & Debugging
 
-- **Debug script**: `python debug.py` for an interactive menu, or `python debug.py shift` | `excel` | `optimize` | `optimize-excel` | `output` | `all`. Use `OUTPUT_SCHEDULE_CSV` and `SAMPLE_EXCEL` env vars when running optimizer tests. See `README_DEBUG.md` in the repo for full usage.
+- **Debug script**: `python debug.py` for an interactive menu, or `python debug.py shift` | `excel` | `optimize` | `optimize-excel` | `output` | `all`.
 - **IDE**: Use `.vscode/launch.json` (e.g. **Python: FastAPI App**, **Python: Debugger Script (Optimizer Tests)**). Set breakpoints and run with F5.
 
 ### Code Formatting
 
 - **Black** (88-char line length) and **Ruff**; config in `pyproject.toml` and `.vscode/settings.json`. Format on save is enabled when the Black Formatter extension is installed.
 - Manual format: `black app/`
+
+### EAM REST Integration
+
+`CloudBacklogClient` (`app/services/cloud_backlog_client.py`) connects to the Hexagon EAM REST API for two operations:
+
+- **`fetch_backlog()`** -- POST to the grid endpoint; returns work orders as a `DataFrame`.
+- **`patch_eam_schedule_data(wo, schedule)`** -- PATCH a work order's start date back to EAM.
+
+Configuration is via `.env` (see `.env.example`). Required variables:
+
+| Variable | Purpose |
+|---|---|
+| `INTEGRATION_BASE_URL` | Base URL for all EAM REST calls |
+| `BACKLOG_ENDPOINT` | Path appended for backlog grid POST |
+| `SCHEDULE_ENDPOINT` | Path appended for work order PATCH |
+| `BACKLOG_INTEGRATION_API_KEY` | API key sent as `X-API-Key` header |
+| `TENANT_ID` | EAM tenant header |
+| `ORGANIZATION` | EAM organization header |
+| `GRID_ID` | Grid ID for backlog dataspy |
+| `DATASPY_ID` | Dataspy ID for backlog query |
 
 ### Next Steps
 

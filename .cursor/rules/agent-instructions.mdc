@@ -20,8 +20,13 @@ Edit this file to steer the Cursor agent for **this repo**. These notes are incl
 
 ## Conventions
 
--
+- **Module docstring:** Every `.py` file starts with a one-line `"""..."""` module docstring.
+- **Section dividers:** Group related top-level definitions (exceptions, helpers, classes) with `# ---...` banner comments containing a short label (e.g. `# Exception`, `# Backlog helpers`).
+- **Class method grouping:** Inside a class, use `# -- Label ---...` inline banners to separate logical groups of methods (e.g. `# -- Backlog fetch ---`, `# -- Work order PATCH ---`). Shared infra methods come first, then public methods grouped by feature.
+- **Docstrings:** Public functions/methods get a concise one-line docstring. Private helpers (`_`-prefixed) get a docstring only when the intent is non-obvious. Do not add docstrings that repeat the function name or signature.
+- **No narration comments:** Do not add inline comments that restate what the code does. Comments should explain *why*, not *what*.
+- **Import order:** stdlib, blank line, third-party, blank line, local app imports.
 
 ## Things to avoid
 
-- Defensive programming unless absoluetly necessary, deep nesting, and over-engineering when a simple path suffices.
+- Defensive programming unless absolutely necessary, deep nesting, and over-engineering when a simple path suffices.
