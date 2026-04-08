@@ -1,5 +1,6 @@
 [
   {
+<<<<<<< HEAD
     "id": "1453482",
     "description": "GD-151B Rake Gearbox - Change oil - High water content ",
     "duration_hours": 1.0,
@@ -4678,5 +4679,20 @@
     "num_people": 1,
     "equipment": "0400",
     "dept": "0400"
+=======
+    "id": "5001",
+    "description": "Fix motor",
+    "duration_hours": 4.0,
+    "priority": 3,
+    "schedule_date": "2026-04-07",
+    "trade": "ELEC",
+    "type": "Corrective",
+    "safety": false,
+    "age_days": 38,
+    "fixed": false,
+    "num_people": 2,
+    "equipment": "EQ-100",
+    "dept": "MFG"
+>>>>>>> 4934af2 (standardized python formatting)
   }
 ]

@@ -2,13 +2,7 @@
 
 from __future__ import annotations
 
-import csv
-import os
-import time
-import uuid
-from dataclasses import replace
-from datetime import date, datetime, timedelta, timezone
-from pathlib import Path
+from datetime import date, timedelta
 from typing import Dict, List, Optional, Tuple
 
 from ortools.sat.python import cp_model
@@ -102,22 +96,30 @@ class ScheduleOptimizer:
             t0 = time.perf_counter()
             self._create_decision_variables()
             t1 = time.perf_counter()
-            dbg_w.writerow([_ts(), run_id, "create_decision_variables", t1 - t0, len(self.x)])
+            dbg_w.writerow(
+                [_ts(), run_id, "create_decision_variables", t1 - t0, len(self.x)]
+            )
 
             t0 = time.perf_counter()
             self._schedule_forced_work_orders()
             t1 = time.perf_counter()
-            dbg_w.writerow([_ts(), run_id, "schedule_forced_work_orders", t1 - t0, len(self.x)])
+            dbg_w.writerow(
+                [_ts(), run_id, "schedule_forced_work_orders", t1 - t0, len(self.x)]
+            )
 
             t0 = time.perf_counter()
             self._add_shift_constraints()
             t1 = time.perf_counter()
-            dbg_w.writerow([_ts(), run_id, "add_shift_constraints", t1 - t0, len(self.x)])
+            dbg_w.writerow(
+                [_ts(), run_id, "add_shift_constraints", t1 - t0, len(self.x)]
+            )
 
             t0 = time.perf_counter()
             self._add_schedule_wo_once_constraint()
             t1 = time.perf_counter()
-            dbg_w.writerow([_ts(), run_id, "add_schedule_wo_once_constraint", t1 - t0, len(self.x)])
+            dbg_w.writerow(
+                [_ts(), run_id, "add_schedule_wo_once_constraint", t1 - t0, len(self.x)]
+            )
 
             t0 = time.perf_counter()
             self.model.Maximize(self._sum_objective_terms())
@@ -323,25 +325,6 @@ class ScheduleOptimizer:
 # ---------------------------------------------------------------------------
 
 
-def apply_bzus_preferences(work_orders: List[WorkOrder]) -> List[WorkOrder]:
-    """Remap trades for BZ unit work orders based on equipment prefix."""
-    result = []
-    for wo in work_orders:
-        if wo.dept == "0400" or wo.dept == "0500":
-            is_bz = True
-        else:
-            is_bz = False
-
-        if wo.trade == "NC-E/I" and is_bz:
-            wo = replace(wo, trade="NC-E/I PM")
-        elif wo.trade == "NC-MECHANIC" and is_bz:
-            wo = replace(wo, trade="NC-PM NIGHT")
-        elif wo.trade == "NC-MECHANIC":
-            wo = replace(wo, trade="NC-PM DAY")
-        result.append(wo)
-    return result
-
-
 def optimize_schedule(
     work_orders: List[WorkOrder],
     start_date: Optional[date] = None,
@@ -349,8 +332,6 @@ def optimize_schedule(
     objective_gains: Optional[Dict[str, float]] = None,
 ) -> Schedule:
     """Run the schedule optimizer and return the resulting schedule."""
-    # work_orders = apply_bzus_preferences(work_orders)
-
     return ScheduleOptimizer(
         work_orders=work_orders,
         start_date=start_date,
