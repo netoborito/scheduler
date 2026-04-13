@@ -4,72 +4,55 @@
 (function () {
   "use strict";
   const SchedulePage = window.SchedulePage;
+  const state = SchedulePage.state;
   const Endpoints = window.Endpoints || {};
 
+  /** Update the status bar text. */
   function setStatus(message) {
     const el = document.getElementById("status");
     if (el) el.textContent = message || "";
   }
 
+  /** POST form data to the optimizer backend and return the JSON response. */
   async function postOptimize(formData) {
     const url = Endpoints.optimize || "/api/optimize";
     const response = await fetch(url, {
       method: "POST",
       body: formData,
     });
-    if (!response.ok) {
-      const errText = await response.text();
-      // #region agent log
-      fetch('http://127.0.0.1:7640/ingest/7a3dd2d9-a345-4784-8f89-4cb4e0b15ff3', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': 'f98a82' }, body: JSON.stringify({ sessionId: 'f98a82', runId: 'pre-fix', hypothesisId: 'H1-H4', location: 'schedule-api.js:22', message: 'postOptimize non-OK response', data: { status: response.status, statusText: response.statusText, body: errText.slice(0, 1000) }, timestamp: Date.now() }) }).catch(() => { });
-      // #endregion
-      throw new Error("Optimization failed");
-    }
+    if (!response.ok) throw new Error("Optimization failed");
     return response.json();
   }
 
   const DAYS = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"];
 
+  /** Collect user-modified work orders into normalized records for hint payloads. */
   function buildHintRecords(includeScheduleDate) {
-    const state = SchedulePage.state;
-    if (!state || !state.latestSchedule || !state.latestWorkOrders || !state.latestWorkOrders.length) {
-      return [];
-    }
-    if (includeScheduleDate && !state.latestSchedule.start_date) {
-      return [];
-    }
-
-    // Build the assignments by ID map
     const assignmentsById = new Map(
-      (state.latestSchedule.assignments || []).map((a) => [String(a.work_order_id), a])
+      state.latestSchedule.assignments.map((a) => [String(a.work_order_id), a])
     );
     const woById = new Map(state.latestWorkOrders.map((wo) => [String(wo.id), wo]));
-    // Get the schedule start date
     const scheduleStart = includeScheduleDate ? new Date(state.latestSchedule.start_date + "T00:00:00") : null;
     const records = [];
 
-    // Loop through the work orders
     for (const [id, wo] of woById.entries()) {
       const baseAssignment = assignmentsById.get(id) || null;
       const override = state.manualScheduleOverrides[id] || null;
       const isForcedUnscheduled = state.manualUnscheduledIds.has(id);
       const isForcedScheduled = state.manualScheduledIds.has(id);
-      const hasAnyAssignment = !!baseAssignment;
-      const isCurrentlyScheduled = !isForcedUnscheduled && (isForcedScheduled || hasAnyAssignment);
+      const isCurrentlyScheduled = !isForcedUnscheduled && (isForcedScheduled || !!baseAssignment);
 
-      if (!baseAssignment && !isCurrentlyScheduled) continue;
+      // Skip work orders the user hasn't touched; include overrides, forced-scheduled,
+      // and forced-unscheduled so the optimizer gets both positive and negative hints.
+      if (!override && !isForcedUnscheduled && !isForcedScheduled) continue;
 
+      // Use the user's override when scheduled, otherwise fall back to the optimizer's
+      // original assignment so negative hints still carry the original placement data.
       const effectiveAssignment = isCurrentlyScheduled ? (override || baseAssignment) : baseAssignment;
-      const dayOffset =
-        effectiveAssignment && typeof effectiveAssignment.day_offset === "number"
-          ? Number(effectiveAssignment.day_offset || 0)
-          : 0;
-      const idx = Math.max(0, Math.min(DAYS.length - 1, Number(dayOffset) || 0));
+      const dayOffset = effectiveAssignment?.day_offset || 0;
+      const idx = Math.max(0, Math.min(DAYS.length - 1, dayOffset));
       const dayName = DAYS[idx];
-      const trade =
-        (override && override.resource_id) ||
-        (baseAssignment && baseAssignment.resource_id) ||
-        wo.trade ||
-        "";
+      const trade = override?.resource_id || baseAssignment?.resource_id || wo.trade || "";
 
       let scheduleDateStr = null;
       if (scheduleStart) {
@@ -78,6 +61,7 @@
         scheduleDateStr = SchedulePage.formatDateLocalYMD(scheduleDate);
       }
 
+      // isCurrentlyScheduled = true are positive hints; isCurrentlyScheduled = false are negative hints.
       records.push({
         id: String(id),
         dayName,
@@ -90,6 +74,7 @@
     return records;
   }
 
+  /** Shape hint records into the {id: [day, trade, scheduled]} dict the optimizer expects. */
   function buildHintsPayload() {
     const hints = {};
     for (const rec of buildHintRecords(false)) {
@@ -98,6 +83,7 @@
     return hints;
   }
 
+  /** Shape hint records into row objects for the /api/schedule/hints persistence endpoint. */
   function buildHintsExportRows() {
     return buildHintRecords(true).map((rec) => ({
       work_order_id: rec.id,
@@ -107,18 +93,12 @@
     }));
   }
 
-  // Save the current schedule state to local storage
+  /** Save current schedule state to localStorage and POST hint snapshot to backend. */
   function persistScheduleState() {
-
-    // Check if the local storage is available
     if (typeof window === "undefined" || !window.localStorage) return;
 
-    // Get the current schedule state
-    const state = SchedulePage.state;
-    if (!state) return;
-
-    // Build the payload
     const payload = {
+      weekStartDate: (state.latestSchedule && state.latestSchedule.start_date) || null,
       latestSchedule: state.latestSchedule,
       latestWorkOrders: state.latestWorkOrders,
       manualScheduledIds: Array.from(state.manualScheduledIds || []),
@@ -133,30 +113,22 @@
       // Ignore storage errors
     }
 
-    // Save the hints snapshot to the backend for the optimizer.
-    if (SchedulePage.buildHintsExportRows) {
-      try {
-        // Build the hints export rows
-        const rows = SchedulePage.buildHintsExportRows();
-
-        // If there are any rows, save the hints to the backend
-        if (rows && rows.length) {
-          // Get the hints URL
-          const hintsUrl = Endpoints.saveScheduleHints || "/api/schedule/hints";
-
-          // Save the hints to the backend
-          fetch(hintsUrl, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(rows),
-          }).catch(() => { });
-        }
-      } catch (_e) {
-        // Ignore network errors
+    try {
+      const rows = buildHintsExportRows();
+      if (rows.length) {
+        const hintsUrl = Endpoints.saveScheduleHints || "/api/schedule/hints";
+        fetch(hintsUrl, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(rows),
+        }).catch(() => { });
       }
+    } catch (_e) {
+      // Ignore network errors
     }
   }
 
+  /** Load schedule state from localStorage, discarding manual overrides if the week changed. */
   function restoreScheduleState() {
     let raw = null;
     try {
@@ -173,14 +145,22 @@
       return;
     }
     if (!saved || typeof saved !== "object") return;
-    const state = SchedulePage.state;
-    if (!state) return;
 
     if (saved.latestSchedule) state.latestSchedule = saved.latestSchedule;
     if (Array.isArray(saved.latestWorkOrders)) state.latestWorkOrders = saved.latestWorkOrders;
-    state.manualScheduledIds = new Set(saved.manualScheduledIds || []);
-    state.manualUnscheduledIds = new Set(saved.manualUnscheduledIds || []);
-    state.manualScheduleOverrides = saved.manualScheduleOverrides || {};
+
+    const currentWeekStart = document.getElementById("calendar")?.dataset?.defaultStart || null;
+    const staleWeek = !saved.weekStartDate || saved.weekStartDate !== currentWeekStart;
+
+    if (staleWeek) {
+      state.manualScheduledIds = new Set();
+      state.manualUnscheduledIds = new Set();
+      state.manualScheduleOverrides = {};
+    } else {
+      state.manualScheduledIds = new Set(saved.manualScheduledIds || []);
+      state.manualUnscheduledIds = new Set(saved.manualUnscheduledIds || []);
+      state.manualScheduleOverrides = saved.manualScheduleOverrides || {};
+    }
     state.shiftColors = saved.shiftColors || {};
     state.shiftAvailability = saved.shiftAvailability || [];
   }

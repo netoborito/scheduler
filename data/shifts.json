@@ -9,7 +9,8 @@
     "friday": true,
     "saturday": true,
     "sunday": true,
-    "technicians_per_crew": 2
+    "technicians_per_crew": 2,
+    "color": ""
   },
   {
     "trade": "NC-E/I PM",
@@ -21,7 +22,8 @@
     "friday": false,
     "saturday": false,
     "sunday": false,
-    "technicians_per_crew": 2
+    "technicians_per_crew": 2,
+    "color": ""
   },
   {
     "trade": "NC-EQUIPMENT",
@@ -33,7 +35,8 @@
     "friday": true,
     "saturday": false,
     "sunday": false,
-    "technicians_per_crew": 1
+    "technicians_per_crew": 1,
+    "color": ""
   },
   {
     "trade": "NC-LUBRICATOR",
@@ -45,7 +48,8 @@
     "friday": true,
     "saturday": false,
     "sunday": false,
-    "technicians_per_crew": 1
+    "technicians_per_crew": 1,
+    "color": ""
   },
   {
     "trade": "NC-MECHANIC EXE",
@@ -57,10 +61,11 @@
     "friday": true,
     "saturday": false,
     "sunday": false,
-    "technicians_per_crew": 2
+    "technicians_per_crew": 2,
+    "color": ""
   },
   {
-    "trade": "NC-PM DAYS",
+    "trade": "NC-PM DAY",
     "shift_duration_hours": 12,
     "monday": true,
     "tuesday": true,
@@ -69,19 +74,8 @@
     "friday": true,
     "saturday": true,
     "sunday": true,
-    "technicians_per_crew": 4
-  },
-  {
-    "trade": "NC-PM NIGHTS",
-    "shift_duration_hours": 12,
-    "monday": true,
-    "tuesday": true,
-    "wednesday": true,
-    "thursday": true,
-    "friday": true,
-    "saturday": true,
-    "sunday": true,
-    "technicians_per_crew": 2
+    "technicians_per_crew": 4,
+    "color": ""
   },
   {
     "trade": "NC-REBUILD",
@@ -93,6 +87,20 @@
     "friday": true,
     "saturday": false,
     "sunday": false,
-    "technicians_per_crew": 2
+    "technicians_per_crew": 2,
+    "color": ""
+  },
+  {
+    "trade": "NC-PM NIGHT",
+    "shift_duration_hours": 12,
+    "monday": true,
+    "tuesday": true,
+    "wednesday": true,
+    "thursday": true,
+    "friday": true,
+    "saturday": true,
+    "sunday": true,
+    "technicians_per_crew": 2,
+    "color": ""
   }
 ]

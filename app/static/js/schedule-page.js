@@ -25,9 +25,6 @@
             fd.append("hints_json", JSON.stringify(hints));
           }
         }
-        // #region agent log
-        fetch('http://127.0.0.1:7640/ingest/7a3dd2d9-a345-4784-8f89-4cb4e0b15ff3', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': 'f98a82' }, body: JSON.stringify({ sessionId: 'f98a82', runId: 'pre-fix', hypothesisId: 'H1-H3', location: 'schedule-page.js:33', message: 'submit optimize FormData summary', data: { keys: Array.from(fd.keys()), hasBacklog: fd.has('backlog_file'), hasHintsJson: fd.has('hints_json'), hasScheduleHintsJson: fd.has('schedule_hints_json') }, timestamp: Date.now() }) }).catch(() => { });
-        // #endregion
         try {
           // Set the status to optimizing schedule
           SchedulePage.setStatus("Optimizing schedule...");

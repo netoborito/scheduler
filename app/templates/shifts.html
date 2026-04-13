@@ -467,7 +467,7 @@
 
           // Populate form
           document.getElementById("trade").value = shift.trade;
-          document.getElementById("trade").disabled = true;
+          document.getElementById("trade").disabled = false;
           document.getElementById("shift_duration_hours").value = shift.shift_duration_hours;
           document.getElementById("technicians_per_crew").value = shift.technicians_per_crew;
           document.getElementById("color").value = shift.color || "";
@@ -587,11 +587,25 @@
           let method = "POST";
 
           if (editingTrade) {
-            url =
-              (Endpoints.shifts && Endpoints.shifts.update
-                ? Endpoints.shifts.update(editingTrade)
-                : `/api/shifts/${encodeURIComponent(editingTrade)}`);
-            method = "PUT";
+            const tradeRenamed = shiftData.trade !== editingTrade;
+            if (tradeRenamed) {
+              // Delete old shift first, then create new one
+              const deleteUrl =
+                (Endpoints.shifts && Endpoints.shifts.byTrade
+                  ? Endpoints.shifts.byTrade(editingTrade)
+                  : `/api/shifts/${encodeURIComponent(editingTrade)}`);
+              const delResp = await fetch(deleteUrl, { method: "DELETE" });
+              if (!delResp.ok) {
+                const error = await delResp.json();
+                throw new Error(error.detail || "Failed to delete old shift");
+              }
+            } else {
+              url =
+                (Endpoints.shifts && Endpoints.shifts.update
+                  ? Endpoints.shifts.update(editingTrade)
+                  : `/api/shifts/${encodeURIComponent(editingTrade)}`);
+              method = "PUT";
+            }
           }
 
           const response = await fetch(url, {

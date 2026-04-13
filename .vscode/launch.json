@@ -44,6 +44,17 @@
       "justMyCode": false
     },
     {
+      "name": "Debug: optimize excel backlog",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/debug.py",
+      "args": ["optimize-excel"],
+      "cwd": "${workspaceFolder}",
+      "python": "${workspaceFolder}/.venv/Scripts/python.exe",
+      "console": "integratedTerminal",
+      "justMyCode": false
+    },
+    {
       "name": "Cloud backlog: fetch (REST POST)",
       "type": "debugpy",
       "request": "launch",

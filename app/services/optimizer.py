@@ -2,7 +2,13 @@
 
 from __future__ import annotations
 
-from datetime import date, timedelta
+import csv
+import os
+import time
+import uuid
+from dataclasses import replace
+from datetime import date, datetime, timedelta, timezone
+from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
 from ortools.sat.python import cp_model
@@ -70,13 +76,56 @@ class ScheduleOptimizer:
                 start_date=self.start_date,
             )
 
-        self._create_decision_variables()
-        self._schedule_forced_work_orders()
-        self._add_shift_constraints()
-        self._add_schedule_wo_once_constraint()
-        self.model.Maximize(self._sum_objective_terms())
+        csv_override = os.environ.get("OPTIMIZER_DEBUG_CSV", "").strip()
+        csv_path = (
+            Path(csv_override)
+            if csv_override
+            else Path(__file__).resolve().parent.parent.parent
+            / "data"
+            / "debug"
+            / "optimizer_build_steps.csv"
+        )
+        csv_path.parent.mkdir(parents=True, exist_ok=True)
+        write_header = not csv_path.is_file() or csv_path.stat().st_size == 0
+        run_id = uuid.uuid4().hex[:8]
+
+        def _ts() -> str:
+            return datetime.now(timezone.utc).isoformat()
+
+        with open(csv_path, "a", newline="", encoding="utf-8") as dbg_f:
+            dbg_w = csv.writer(dbg_f)
+            if write_header:
+                dbg_w.writerow(
+                    ["iso_timestamp", "run_id", "step", "elapsed_seconds", "num_x_vars"]
+                )
+
+            t0 = time.perf_counter()
+            self._create_decision_variables()
+            t1 = time.perf_counter()
+            dbg_w.writerow([_ts(), run_id, "create_decision_variables", t1 - t0, len(self.x)])
+
+            t0 = time.perf_counter()
+            self._schedule_forced_work_orders()
+            t1 = time.perf_counter()
+            dbg_w.writerow([_ts(), run_id, "schedule_forced_work_orders", t1 - t0, len(self.x)])
+
+            t0 = time.perf_counter()
+            self._add_shift_constraints()
+            t1 = time.perf_counter()
+            dbg_w.writerow([_ts(), run_id, "add_shift_constraints", t1 - t0, len(self.x)])
+
+            t0 = time.perf_counter()
+            self._add_schedule_wo_once_constraint()
+            t1 = time.perf_counter()
+            dbg_w.writerow([_ts(), run_id, "add_schedule_wo_once_constraint", t1 - t0, len(self.x)])
+
+            t0 = time.perf_counter()
+            self.model.Maximize(self._sum_objective_terms())
+            t1 = time.perf_counter()
+            dbg_w.writerow([_ts(), run_id, "maximize_objective", t1 - t0, len(self.x)])
 
         solver = cp_model.CpSolver()
+        # solver.parameters.max_time_in_seconds = 60
         solver_status = solver.Solve(self.model)
 
         return self._build_schedule(solver, solver_status)
@@ -84,10 +133,7 @@ class ScheduleOptimizer:
     # -- Helpers -------------------------------------------------------------
 
     def _get_manhours(self, wo: WorkOrder) -> int:
-        return int(
-            round(max(wo.duration_hours, 0.5)
-                  * self.time_scale)
-        ) * wo.num_people
+        return int(round(max(wo.duration_hours, 0.5) * self.time_scale)) * wo.num_people
 
     # -- Constraints ---------------------------------------------------------
 
@@ -138,7 +184,9 @@ class ScheduleOptimizer:
 
         for shift in self.shifts:
             max_manhours_per_day = (
-                shift.technicians_per_crew * shift.shift_duration_hours * self.time_scale
+                shift.technicians_per_crew
+                * shift.shift_duration_hours
+                * self.time_scale
             )
             for day in self.days:
                 if shift.is_active_on_day(day):
@@ -177,10 +225,8 @@ class ScheduleOptimizer:
 
                         manhours = self._get_manhours(wo)
                         if wo is not None and wo.fixed:
-                            forced_manhours_per_day += (
-                                manhours
-                            )
-                        boolvar_in_manhours_per_day.append(boolvar*manhours)
+                            forced_manhours_per_day += manhours
+                        boolvar_in_manhours_per_day.append(boolvar * manhours)
 
                     if forced_manhours_per_day > max_manhours_per_day:
                         max_manhours_per_day = forced_manhours_per_day
@@ -191,8 +237,7 @@ class ScheduleOptimizer:
                         max_manhours_per_day,
                         f"manhours_per_day_{crew.trade}_{day}",
                     )
-                    self.model.Add(var_load == sum(
-                        boolvar_in_manhours_per_day))
+                    self.model.Add(var_load == sum(boolvar_in_manhours_per_day))
 
                     var_load_sq = self.model.NewIntVar(
                         0,
@@ -232,7 +277,11 @@ class ScheduleOptimizer:
 
     def _is_hint(self, wo_id: str, trade: str, day: str) -> int:
         if wo_id in self.hints.keys():
-            if self.hints[wo_id][0] == day and self.hints[wo_id][1] == trade and self.hints[wo_id][2] == True:
+            if (
+                self.hints[wo_id][0] == day
+                and self.hints[wo_id][1] == trade
+                and self.hints[wo_id][2] == True
+            ):
                 return 1
             else:
                 return -1
@@ -274,6 +323,25 @@ class ScheduleOptimizer:
 # ---------------------------------------------------------------------------
 
 
+def apply_bzus_preferences(work_orders: List[WorkOrder]) -> List[WorkOrder]:
+    """Remap trades for BZ unit work orders based on equipment prefix."""
+    result = []
+    for wo in work_orders:
+        if wo.dept == "0400" or wo.dept == "0500":
+            is_bz = True
+        else:
+            is_bz = False
+
+        if wo.trade == "NC-E/I" and is_bz:
+            wo = replace(wo, trade="NC-E/I PM")
+        elif wo.trade == "NC-MECHANIC" and is_bz:
+            wo = replace(wo, trade="NC-PM NIGHT")
+        elif wo.trade == "NC-MECHANIC":
+            wo = replace(wo, trade="NC-PM DAY")
+        result.append(wo)
+    return result
+
+
 def optimize_schedule(
     work_orders: List[WorkOrder],
     start_date: Optional[date] = None,
@@ -281,6 +349,8 @@ def optimize_schedule(
     objective_gains: Optional[Dict[str, float]] = None,
 ) -> Schedule:
     """Run the schedule optimizer and return the resulting schedule."""
+    # work_orders = apply_bzus_preferences(work_orders)
+
     return ScheduleOptimizer(
         work_orders=work_orders,
         start_date=start_date,
