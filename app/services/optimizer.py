@@ -2,7 +2,13 @@
 
 from __future__ import annotations
 
+import csv
+import json
+import os
+import re
+from dataclasses import replace
 from datetime import date, timedelta
+from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
 from ortools.sat.python import cp_model
@@ -32,7 +38,7 @@ DEFAULT_OBJECTIVE_GAINS = {
     "safety": 1,
     "type": 1,
     "load_balance": 1,
-    "hints": 0,
+    "hints": 1,
 }
 
 
@@ -70,64 +76,14 @@ class ScheduleOptimizer:
                 start_date=self.start_date,
             )
 
-        csv_override = os.environ.get("OPTIMIZER_DEBUG_CSV", "").strip()
-        csv_path = (
-            Path(csv_override)
-            if csv_override
-            else Path(__file__).resolve().parent.parent.parent
-            / "data"
-            / "debug"
-            / "optimizer_build_steps.csv"
-        )
-        csv_path.parent.mkdir(parents=True, exist_ok=True)
-        write_header = not csv_path.is_file() or csv_path.stat().st_size == 0
-        run_id = uuid.uuid4().hex[:8]
-
-        def _ts() -> str:
-            return datetime.now(timezone.utc).isoformat()
-
-        with open(csv_path, "a", newline="", encoding="utf-8") as dbg_f:
-            dbg_w = csv.writer(dbg_f)
-            if write_header:
-                dbg_w.writerow(
-                    ["iso_timestamp", "run_id", "step", "elapsed_seconds", "num_x_vars"]
-                )
-
-            t0 = time.perf_counter()
-            self._create_decision_variables()
-            t1 = time.perf_counter()
-            dbg_w.writerow(
-                [_ts(), run_id, "create_decision_variables", t1 - t0, len(self.x)]
-            )
-
-            t0 = time.perf_counter()
-            self._schedule_forced_work_orders()
-            t1 = time.perf_counter()
-            dbg_w.writerow(
-                [_ts(), run_id, "schedule_forced_work_orders", t1 - t0, len(self.x)]
-            )
-
-            t0 = time.perf_counter()
-            self._add_shift_constraints()
-            t1 = time.perf_counter()
-            dbg_w.writerow(
-                [_ts(), run_id, "add_shift_constraints", t1 - t0, len(self.x)]
-            )
-
-            t0 = time.perf_counter()
-            self._add_schedule_wo_once_constraint()
-            t1 = time.perf_counter()
-            dbg_w.writerow(
-                [_ts(), run_id, "add_schedule_wo_once_constraint", t1 - t0, len(self.x)]
-            )
-
-            t0 = time.perf_counter()
-            self.model.Maximize(self._sum_objective_terms())
-            t1 = time.perf_counter()
-            dbg_w.writerow([_ts(), run_id, "maximize_objective", t1 - t0, len(self.x)])
+        self._create_decision_variables()
+        self._schedule_forced_work_orders()
+        self._add_shift_constraints()
+        self._add_schedule_wo_once_constraint()
+        self.model.Maximize(self._sum_objective_terms())
 
         solver = cp_model.CpSolver()
-        # solver.parameters.max_time_in_seconds = 60
+        # solver.parameters.max_time_in_seconds = 100
         solver_status = solver.Solve(self.model)
 
         return self._build_schedule(solver, solver_status)
@@ -140,6 +96,7 @@ class ScheduleOptimizer:
     # -- Constraints ---------------------------------------------------------
 
     def _add_schedule_wo_once_constraint(self) -> None:
+        debug_rows: List[List] = []
         for wo in self.work_orders:
             if wo.trade in [shift.trade for shift in self.shifts]:
                 wo_by_wo = []
@@ -147,6 +104,18 @@ class ScheduleOptimizer:
                     if wo_id == wo.id:
                         wo_by_wo.append(decision_variable)
                 self.model.Add(sum(wo_by_wo) <= 1)
+                debug_rows.append([wo.id, wo.trade, len(wo_by_wo), str(wo_by_wo)])
+
+        if os.environ.get("OPTIMIZER_DEBUG_CSV", "").strip() and debug_rows:
+            with open(
+                "data/debug/schedule_wo_once_constraints.csv",
+                "w",
+                newline="",
+                encoding="utf-8",
+            ) as f:
+                w = csv.writer(f)
+                w.writerow(["wo_id", "trade", "num_vars", "boolvars"])
+                w.writerows(debug_rows)
 
     def _get_shift_boolvars(
         self, day: str, shift: Shift
@@ -158,6 +127,7 @@ class ScheduleOptimizer:
         return out
 
     def _create_decision_variables(self) -> None:
+        debug_rows: List[List] = []
         for wo in self.work_orders:
             for shift in self.shifts:
                 if shift.trade == wo.trade:
@@ -167,11 +137,24 @@ class ScheduleOptimizer:
                                 f"x_{wo.id}_{wo.trade}_{day}"
                             )
                             self.x[wo.id, wo.trade, day] = boolvar
+                            debug_rows.append([wo.id, wo.trade, day, str(boolvar)])
+
+        if os.environ.get("OPTIMIZER_DEBUG_CSV", "").strip() and debug_rows:
+            with open(
+                "data/debug/decision_variables.csv",
+                "w",
+                newline="",
+                encoding="utf-8",
+            ) as f:
+                w = csv.writer(f)
+                w.writerow(["wo_id", "trade", "day", "boolvar"])
+                w.writerows(debug_rows)
 
     def _schedule_forced_work_orders(self) -> None:
         wo_by_id = {wo.id: wo for wo in self.work_orders}
         if self.start_date is None:
             return
+        debug_rows: List[List] = []
         for (wo_id, _trade, day), boolvar in self.x.items():
             wo = wo_by_id.get(wo_id)
             if wo is None:
@@ -180,9 +163,22 @@ class ScheduleOptimizer:
                 days=self.days.index(day)
             ):
                 self.model.Add(boolvar == 1)
+                debug_rows.append([wo_id, _trade, day, str(boolvar)])
+
+        if os.environ.get("OPTIMIZER_DEBUG_CSV", "").strip() and debug_rows:
+            with open(
+                "data/debug/forced_work_orders.csv",
+                "w",
+                newline="",
+                encoding="utf-8",
+            ) as f:
+                w = csv.writer(f)
+                w.writerow(["wo_id", "trade", "day", "boolvar"])
+                w.writerows(debug_rows)
 
     def _add_shift_constraints(self) -> None:
         wo_by_id = {wo.id: wo for wo in self.work_orders}
+        debug_rows: List[List] = []
 
         for shift in self.shifts:
             max_manhours_per_day = (
@@ -203,18 +199,45 @@ class ScheduleOptimizer:
 
                     if shift_wo:
                         self.model.Add(sum(shift_wo) <= max_manhours_per_day)
+                        debug_rows.append(
+                            [
+                                shift.trade,
+                                day,
+                                total_units,
+                                max_manhours_per_day,
+                                str(shift_wo),
+                            ]
+                        )
+
+        if os.environ.get("OPTIMIZER_DEBUG_CSV", "").strip() and debug_rows:
+            with open(
+                "data/debug/shift_constraints.csv",
+                "w",
+                newline="",
+                encoding="utf-8",
+            ) as f:
+                w = csv.writer(f)
+                w.writerow(
+                    ["shift", "day", "total_units", "max_manhours_per_day", "shift_wo"]
+                )
+                w.writerows(debug_rows)
 
     # -- Objective -----------------------------------------------------------
 
-    def _add_loadbalance_objective(self, gain: float = 1.0) -> List:
+    def _add_loadbalance_objective_linear(self, gain: float = 1.0) -> List:
+        """Minimax load-balance: penalize the peak daily load per shift."""
         objective_terms: List = []
+        debug_rows: List[List] = []
         wo_by_id = {wo.id: wo for wo in self.work_orders}
 
         for crew in self.shifts:
-            max_manhours_per_day = (
+            max_manhours_per_day = int(
                 crew.technicians_per_crew * crew.shift_duration_hours * self.time_scale
             )
-            sq_max_manhours_per_day = max_manhours_per_day**2
+
+            max_load_var = self.model.NewIntVar(
+                0, max_manhours_per_day, f"max_load_{crew.trade}"
+            )
 
             for day in self.days:
                 if crew.is_active_on_day(day):
@@ -224,7 +247,6 @@ class ScheduleOptimizer:
                     shift_boolvars = self._get_shift_boolvars(day, crew)
                     for (wo_id, _trade, _sched_day), boolvar in shift_boolvars.items():
                         wo = wo_by_id.get(wo_id)
-
                         manhours = self._get_manhours(wo)
                         if wo is not None and wo.fixed:
                             forced_manhours_per_day += manhours
@@ -232,26 +254,33 @@ class ScheduleOptimizer:
 
                     if forced_manhours_per_day > max_manhours_per_day:
                         max_manhours_per_day = forced_manhours_per_day
-                        sq_max_manhours_per_day = forced_manhours_per_day**2
+                        self.model.Proto().variables[max_load_var.Index()].domain[:] = [
+                            0,
+                            max_manhours_per_day,
+                        ]
 
                     var_load = self.model.NewIntVar(
                         0,
                         max_manhours_per_day,
-                        f"manhours_per_day_{crew.trade}_{day}",
+                        f"lin_load_{crew.trade}_{day}",
                     )
                     self.model.Add(var_load == sum(boolvar_in_manhours_per_day))
+                    self.model.Add(max_load_var >= var_load)
 
-                    var_load_sq = self.model.NewIntVar(
-                        0,
-                        sq_max_manhours_per_day,
-                        f"manhours_per_day_sq_{crew.trade}_{day}",
-                    )
-                    self.model.AddMultiplicationEquality(
-                        var_load_sq, [var_load, var_load]
-                    )
-                    objective_terms.append(
-                        (var_load_sq - sq_max_manhours_per_day) * gain
-                    )
+            objective_terms.append(-max_load_var * gain)
+            debug_rows.append([crew.trade, str(max_load_var)])
+
+        if os.environ.get("OPTIMIZER_DEBUG_CSV") == "1" and debug_rows:
+            with open(
+                "data/debug/loadbalance_linear_terms.csv",
+                "w",
+                newline="",
+                encoding="utf-8",
+            ) as f:
+                w = csv.writer(f)
+                w.writerow(["trade", "max_load_var"])
+                w.writerows(debug_rows)
+
         return objective_terms
 
     def _add_maximize_objective(self) -> List:
@@ -272,7 +301,7 @@ class ScheduleOptimizer:
                     + (5 - wo.priority) * gains["priority"]
                     + safety_as_int * gains["safety"]
                     + type_as_int * gains["type"]
-                    # + hint * gains["hints"]
+                    + hint * gains["hints"]
                 )
             )
         return maximize_terms
@@ -291,7 +320,7 @@ class ScheduleOptimizer:
             return 0
 
     def _sum_objective_terms(self) -> cp_model.LinearExpr:
-        balance_terms = self._add_loadbalance_objective(
+        balance_terms = self._add_loadbalance_objective_linear(
             self.objective_gains["load_balance"]
         )
         maximize_terms = self._add_maximize_objective()
@@ -324,6 +353,37 @@ class ScheduleOptimizer:
 # Public API
 # ---------------------------------------------------------------------------
 
+_PREFERENCES_PATH = (
+    Path(__file__).resolve().parent.parent.parent / "data" / "preferences.json"
+)
+
+
+def apply_custom_preferences(work_orders: List[WorkOrder]) -> List[WorkOrder]:
+    """Apply data-driven match/set rules from preferences.json to remap WO fields."""
+    if not _PREFERENCES_PATH.is_file():
+        return work_orders
+
+    with open(_PREFERENCES_PATH, encoding="utf-8") as f:
+        rules = json.load(f)
+
+    if not rules:
+        return work_orders
+
+    out: List[WorkOrder] = []
+    for wo in work_orders:
+        matched = False
+        for rule in rules:
+            if all(
+                re.search(pattern, str(getattr(wo, field, "")))
+                for field, pattern in rule["match"].items()
+            ):
+                out.append(replace(wo, **rule["set"]))
+                matched = True
+                break
+        if not matched:
+            out.append(wo)
+    return out
+
 
 def optimize_schedule(
     work_orders: List[WorkOrder],
@@ -332,6 +392,7 @@ def optimize_schedule(
     objective_gains: Optional[Dict[str, float]] = None,
 ) -> Schedule:
     """Run the schedule optimizer and return the resulting schedule."""
+    work_orders = apply_custom_preferences(work_orders)
     return ScheduleOptimizer(
         work_orders=work_orders,
         start_date=start_date,

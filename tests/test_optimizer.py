@@ -7,7 +7,7 @@ from app.models.domain import WorkOrder
 from app.models.shift import Shift
 from app.services.optimizer import (
     ScheduleOptimizer,
-    apply_bzus_preferences,
+    apply_custom_preferences,
     optimize_schedule,
 )
 
@@ -127,7 +127,7 @@ def test_optimize_schedule_hints_default_empty():
     assert opt.hints == {}
 
 
-# -- apply_bzus_preferences ---------------------------------------------------
+# -- apply_custom_preferences -------------------------------------------------
 
 
 def _make_wo(trade: str, equipment: str = "") -> WorkOrder:
@@ -137,46 +137,46 @@ def _make_wo(trade: str, equipment: str = "") -> WorkOrder:
     )
 
 
-def test_bzus_ei_with_bz_400_remaps():
-    result = apply_bzus_preferences([_make_wo("NC-E/I", "40012345")])
+def test_prefs_ei_with_bz_400_remaps():
+    result = apply_custom_preferences([_make_wo("NC-E/I", "40012345")])
     assert result[0].trade == "NC-E/I PM"
 
 
-def test_bzus_ei_with_bz_500_remaps():
-    result = apply_bzus_preferences([_make_wo("NC-E/I", "50098765")])
+def test_prefs_ei_with_bz_500_remaps():
+    result = apply_custom_preferences([_make_wo("NC-E/I", "50098765")])
     assert result[0].trade == "NC-E/I PM"
 
 
-def test_bzus_ei_with_leading_zero_remaps():
-    result = apply_bzus_preferences([_make_wo("NC-E/I", "040012345")])
+def test_prefs_ei_with_leading_zero_remaps():
+    result = apply_custom_preferences([_make_wo("NC-E/I", "040012345")])
     assert result[0].trade == "NC-E/I PM"
 
 
-def test_bzus_ei_without_bz_unchanged():
-    result = apply_bzus_preferences([_make_wo("NC-E/I", "60012345")])
+def test_prefs_ei_without_bz_unchanged():
+    result = apply_custom_preferences([_make_wo("NC-E/I", "60012345")])
     assert result[0].trade == "NC-E/I"
 
 
-def test_bzus_ei_rejects_1400():
-    result = apply_bzus_preferences([_make_wo("NC-E/I", "14001234")])
+def test_prefs_ei_rejects_1400():
+    result = apply_custom_preferences([_make_wo("NC-E/I", "14001234")])
     assert result[0].trade == "NC-E/I"
 
 
-def test_bzus_mechanic_bz_remaps_to_nights():
-    result = apply_bzus_preferences([_make_wo("NC-MECHANIC", "40012345")])
-    assert result[0].trade == "NC-PM NIGHTS"
+def test_prefs_mechanic_bz_remaps_to_night():
+    result = apply_custom_preferences([_make_wo("NC-MECHANIC", "40012345")])
+    assert result[0].trade == "NC-PM NIGHT"
 
 
-def test_bzus_mechanic_non_bz_remaps_to_days():
-    result = apply_bzus_preferences([_make_wo("NC-MECHANIC", "60012345")])
-    assert result[0].trade == "NC-PM DAYS"
+def test_prefs_mechanic_non_bz_remaps_to_day():
+    result = apply_custom_preferences([_make_wo("NC-MECHANIC", "60012345")])
+    assert result[0].trade == "NC-PM DAY"
 
 
-def test_bzus_mechanic_exe_untouched():
-    result = apply_bzus_preferences([_make_wo("NC-MECHANIC EXE", "40012345")])
+def test_prefs_mechanic_exe_untouched():
+    result = apply_custom_preferences([_make_wo("NC-MECHANIC EXE", "40012345")])
     assert result[0].trade == "NC-MECHANIC EXE"
 
 
-def test_bzus_other_trade_untouched():
-    result = apply_bzus_preferences([_make_wo("Electrical", "40012345")])
+def test_prefs_other_trade_untouched():
+    result = apply_custom_preferences([_make_wo("Electrical", "40012345")])
     assert result[0].trade == "Electrical"

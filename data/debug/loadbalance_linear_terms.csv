@@ -1,0 +1,9 @@
+trade,max_load_var
+NC-E/I,max_load_NC-E/I
+NC-E/I PM,max_load_NC-E/I PM
+NC-EQUIPMENT,max_load_NC-EQUIPMENT
+NC-LUBRICATOR,max_load_NC-LUBRICATOR
+NC-MECHANIC EXE,max_load_NC-MECHANIC EXE
+NC-PM DAY,max_load_NC-PM DAY
+NC-PM NIGHT,max_load_NC-PM NIGHT
+NC-REBUILD,max_load_NC-REBUILD

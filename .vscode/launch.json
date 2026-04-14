@@ -52,6 +52,9 @@
       "cwd": "${workspaceFolder}",
       "python": "${workspaceFolder}/.venv/Scripts/python.exe",
       "console": "integratedTerminal",
+      "env": {
+        "OPTIMIZER_DEBUG_CSV": "1"
+      },
       "justMyCode": false
     },
     {
