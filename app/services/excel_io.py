@@ -86,12 +86,10 @@ def load_and_filter(
 
     - Drops column `Equipment Description` if present.
     - Keeps only rows with `Status == 'Open - Ready to Schedule'`.
-    - Keeps only rows where `Sched Start Date` is missing (unscheduled) or falls
-      within [start_date, start_date + horizon_days). Drops PMs due after scheduling horizon.
+    - Drops PMs due after scheduling horizon.
     """
     filtered = df.copy()
-    filtered = filtered.drop(
-        columns=["Equipment Description"], errors="ignore")
+    filtered = filtered.drop(columns=["Equipment Description"], errors="ignore")
 
     if "Status" in filtered.columns:
         filtered = filtered[filtered["Status"] == "Open - Ready to Schedule"]
@@ -106,18 +104,10 @@ def load_and_filter(
 
     # Remove PMs beyond the scheduling horizon
     beyond_horizon_PMs = (filtered.get("Type") == "Preventive maintenance") & (
-        filtered["Sched. Start Date"] > pd.Timestamp(
-            start_ts) + timedelta(days=horizon_days)
+        filtered["Sched. Start Date"]
+        > pd.Timestamp(start_ts) + timedelta(days=horizon_days * 2)
     )
     filtered = filtered[~beyond_horizon_PMs]
-
-    # Keep: no date (NaT) or date in [start_date, end_date)
-    current_wo_omitted = filtered["Sched. Start Date"].isna() | (
-        (filtered["Sched. Start Date"] < start_ts)
-        & (filtered["Sched. Start Date"] >= end_ts - timedelta(days=7))
-    )
-
-    filtered = filtered[~current_wo_omitted]
 
     return filtered
 
@@ -166,8 +156,7 @@ def fetch_backlog(
         num_people = int(num_people_raw) if not pd.isna(num_people_raw) else 1
 
         equipment_raw = row.get("Equipment", "")
-        equipment = str(equipment_raw).strip(
-        ) if not pd.isna(equipment_raw) else ""
+        equipment = str(equipment_raw).strip() if not pd.isna(equipment_raw) else ""
 
         dept_raw = row.get("Department", "")
         dept = str(dept_raw).strip() if not pd.isna(dept_raw) else ""
@@ -178,7 +167,8 @@ def fetch_backlog(
         safety = _parse_safety(safety_raw, class_raw)
         age_days = _get_wo_age(row.get("Date Created", None))
         priority = _parse_priority(
-            row.get("Priority", ""), wo_type=wo_type, safety=safety)
+            row.get("Priority", ""), wo_type=wo_type, safety=safety
+        )
 
         schedule_date_raw = row.get("Sched. Start Date")
         if pd.isna(schedule_date_raw):
@@ -227,7 +217,9 @@ def fetch_backlog(
                     "description": wo.description,
                     "duration_hours": wo.duration_hours,
                     "priority": wo.priority,
-                    "schedule_date": wo.schedule_date.isoformat() if wo.schedule_date else None,
+                    "schedule_date": (
+                        wo.schedule_date.isoformat() if wo.schedule_date else None
+                    ),
                     "trade": wo.trade,
                     "type": wo.type,
                     "safety": wo.safety,
@@ -255,8 +247,12 @@ def fetch_backlog(
 def get_backlog_from_json() -> List[WorkOrder]:
     """Load previously parsed work orders from data/json/backlog.json."""
     base_dir = Path(__file__).resolve().parents[2]
-    json_path = base_dir / "data" / "schedules" / \
-        "backlog" + "_" + date.today().isoformat() + ".json"
+    json_path = (
+        base_dir / "data" / "schedules" / "backlog"
+        + "_"
+        + date.today().isoformat()
+        + ".json"
+    )
 
     if not json_path.exists():
         return []
@@ -332,7 +328,7 @@ def build_schedule_workbook(
             "equipment",
             "dept",
             "schedule_date",
-            "schedule_line"
+            "schedule_line",
         ]
     )
 

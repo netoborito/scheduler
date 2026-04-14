@@ -348,3 +348,65 @@ button.secondary {
 .man-hours-badge.man-hours-over {
   color: #f87171;
 }
+
+/* ── Work Order Edit Modal ── */
+
+/* Fullscreen dark backdrop, hidden until .visible is added */
+.wo-edit-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  z-index: 9999;
+  align-items: center;
+  justify-content: center;
+}
+
+.wo-edit-overlay.visible {
+  display: flex;
+}
+
+/* Centered card -- matches existing surface / border vars */
+.wo-edit-card {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-muted);
+  border-radius: var(--radius-lg);
+  padding: 20px 24px;
+  width: 380px;
+  max-width: 90vw;
+  color: var(--text-primary);
+  font-size: 0.9rem;
+}
+
+/* Label + value rows */
+.wo-edit-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 5px 0;
+  border-bottom: 1px solid var(--border-muted);
+}
+
+.wo-edit-row label {
+  font-weight: 600;
+  font-size: 0.8rem;
+  color: var(--text-label);
+  min-width: 90px;
+}
+
+.wo-edit-row span {
+  text-align: right;
+  color: var(--text-primary);
+  font-size: 0.85rem;
+}
+
+/* Date and trade inputs inherit the dark theme */
+.wo-edit-row input[type="date"],
+.wo-edit-row select {
+  background: var(--bg-page);
+  border: 1px solid var(--border-input);
+  border-radius: var(--radius-md);
+  color: var(--text-primary);
+  padding: 4px 8px;
+  font-size: 0.85rem;
+}

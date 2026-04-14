@@ -11,6 +11,111 @@
   const getTradeColor = SchedulePage.getTradeColor;
   const buildWorkOrderContent = SchedulePage.buildWorkOrderContent;
 
+  // ── Edit Modal helpers ──────────────────────────────────────────────
+  // Double-click detection state: track the last-clicked WO and timestamp
+  // so we can distinguish single clicks (drag) from double clicks (edit).
+  let lastClickWoId = null;
+  let lastClickTime = 0;
+
+  /** Show the edit modal, pre-filled with the WO's current values. */
+  function openEditModal(woId, currentDateStr, currentTrade) {
+    const overlay = document.getElementById("wo-edit-modal");
+    if (!overlay) return;
+
+    // Look up full WO data for read-only fields
+    const wo = state.latestWorkOrders.find((w) => String(w.id) === String(woId));
+
+    // Fill read-only fields
+    document.getElementById("wo-edit-id").textContent = woId;
+    document.getElementById("wo-edit-desc").textContent = wo ? wo.description || "" : "";
+    document.getElementById("wo-edit-priority").textContent = wo ? (wo.priority ?? "") : "";
+    document.getElementById("wo-edit-duration").textContent = wo ? (wo.duration_hours ?? 0) : "";
+    document.getElementById("wo-edit-people").textContent = wo ? (wo.num_people ?? 1) : "";
+
+    // Set editable date field (YYYY-MM-DD string for <input type="date">)
+    document.getElementById("wo-edit-date").value = currentDateStr || "";
+
+    // Build trade dropdown from the shifts already loaded in state
+    const tradeSelect = document.getElementById("wo-edit-trade");
+    tradeSelect.innerHTML = "";
+    const trades = (state.shiftAvailability || []).map((s) => s.trade).filter(Boolean);
+    for (const t of trades) {
+      const opt = document.createElement("option");
+      opt.value = t;
+      opt.textContent = t;
+      if (t === currentTrade) opt.selected = true;
+      tradeSelect.appendChild(opt);
+    }
+
+    // Stash the WO id so saveEditModal knows which WO to update
+    overlay.dataset.woId = woId;
+
+    overlay.classList.add("visible");
+  }
+
+  /** Hide the edit modal. */
+  function closeEditModal() {
+    const overlay = document.getElementById("wo-edit-modal");
+    if (overlay) overlay.classList.remove("visible");
+  }
+
+  /**
+   * Read the user's edits from the modal, write them as an override,
+   * then refresh the calendar. Same flow as eventDrop.
+   */
+  function saveEditModal() {
+    const overlay = document.getElementById("wo-edit-modal");
+    if (!overlay || !state.latestSchedule) return;
+
+    const woId = overlay.dataset.woId;
+    if (!woId) return;
+
+    // Read new values from inputs
+    const newDateStr = document.getElementById("wo-edit-date").value;
+    const newTrade = document.getElementById("wo-edit-trade").value;
+    if (!newDateStr) return;
+
+    // Compute day_offset = days between schedule start and the chosen date
+    const scheduleStart = new Date(state.latestSchedule.start_date + "T00:00:00");
+    const newDate = new Date(newDateStr + "T00:00:00");
+    const dayOffset = Math.round((newDate - scheduleStart) / (24 * 60 * 60 * 1000));
+
+    // Write override -- identical to what eventDrop does
+    state.manualScheduleOverrides[woId] = {
+      day_offset: dayOffset,
+      resource_id: newTrade,
+    };
+
+    // Refresh everything (same chain as eventDrop)
+    rebuildAllCalendarEvents();
+    applyCalendarResourceFilter();
+    SchedulePage.updateTradeViews();
+    if (SchedulePage.persistScheduleState) {
+      SchedulePage.persistScheduleState();
+    }
+
+    closeEditModal();
+  }
+
+  // Wire up Save / Cancel buttons + click-outside-to-close
+  document.addEventListener("DOMContentLoaded", function () {
+    var saveBtn = document.getElementById("wo-edit-save");
+    if (saveBtn) saveBtn.addEventListener("click", saveEditModal);
+
+    var cancelBtn = document.getElementById("wo-edit-cancel");
+    if (cancelBtn) cancelBtn.addEventListener("click", closeEditModal);
+
+    // Clicking the dark backdrop (not the card) also closes
+    var overlay = document.getElementById("wo-edit-modal");
+    if (overlay) {
+      overlay.addEventListener("click", function (e) {
+        if (e.target === overlay) closeEditModal();
+      });
+    }
+  });
+
+  // ── End Edit Modal helpers ──────────────────────────────────────────
+
   function updateAllManHoursBadges() {
     if (!state.calendar) return;
     const el = state.calendar.el;
@@ -120,10 +225,17 @@
       return;
     }
     const defaultStart = calendarEl.dataset.defaultStart || undefined;
+    let calendarStart = defaultStart;
+    if (defaultStart) {
+      const d = new Date(defaultStart + "T00:00:00");
+      d.setDate(d.getDate() - 7);
+      calendarStart = d.toISOString().slice(0, 10);
+    }
     const calendar = new FullCalendar.Calendar(calendarEl, {
-      initialView: "dayGridWeek",
+      initialView: "twoWeek",
+      views: { twoWeek: { type: "dayGrid", duration: { days: 14 } } },
       height: "auto",
-      initialDate: defaultStart,
+      initialDate: calendarStart,
       headerToolbar: { left: "prev,next today", center: "title", right: "" },
       firstDay: 1,
       themeSystem: "standard",
@@ -218,6 +330,24 @@
         SchedulePage.updateTradeViews();
         if (SchedulePage.persistScheduleState) {
           SchedulePage.persistScheduleState();
+        }
+      },
+      // Double-click to open the edit modal.
+      // Two clicks on the same WO within 350ms = double-click.
+      eventClick: function (info) {
+        const woId = info.event.extendedProps?.workOrderId;
+        if (!woId) return;
+        const now = Date.now();
+        if (lastClickWoId === woId && now - lastClickTime < 350) {
+          // Double-click detected -- open the edit modal
+          lastClickWoId = null;
+          const dateStr = info.event.startStr || "";
+          const trade = info.event.extendedProps?.resourceId || "";
+          openEditModal(woId, dateStr, trade);
+        } else {
+          // First click -- just record it and wait for possible second
+          lastClickWoId = woId;
+          lastClickTime = now;
         }
       },
     });

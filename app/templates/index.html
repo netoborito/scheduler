@@ -105,6 +105,51 @@
     </div>
   </div>
 
+  <!-- ── Work Order Edit Modal (hidden by default) ── -->
+  <div id="wo-edit-modal" class="wo-edit-overlay">
+    <div class="wo-edit-card">
+      <h3 style="margin-top:0">Edit Work Order</h3>
+
+      <!-- Read-only info rows -->
+      <div class="wo-edit-row">
+        <label>WO</label>
+        <span id="wo-edit-id"></span>
+      </div>
+      <div class="wo-edit-row">
+        <label>Description</label>
+        <span id="wo-edit-desc"></span>
+      </div>
+      <div class="wo-edit-row">
+        <label>Priority</label>
+        <span id="wo-edit-priority"></span>
+      </div>
+      <div class="wo-edit-row">
+        <label>Duration (h)</label>
+        <span id="wo-edit-duration"></span>
+      </div>
+      <div class="wo-edit-row">
+        <label>People</label>
+        <span id="wo-edit-people"></span>
+      </div>
+
+      <!-- Editable fields -->
+      <div class="wo-edit-row">
+        <label for="wo-edit-date">Date</label>
+        <input type="date" id="wo-edit-date" />
+      </div>
+      <div class="wo-edit-row">
+        <label for="wo-edit-trade">Trade</label>
+        <select id="wo-edit-trade"></select>
+      </div>
+
+      <!-- Action buttons -->
+      <div style="margin-top:12px; text-align:right">
+        <button type="button" class="secondary" id="wo-edit-cancel">Cancel</button>
+        <button type="button" id="wo-edit-save">Save</button>
+      </div>
+    </div>
+  </div>
+
   <script src="{{ request.url_for('static', path='js/schedule/schedule-state.js') }}"></script>
   <script src="{{ request.url_for('static', path='js/api/endpoints.js') }}"></script>
   <script src="{{ request.url_for('static', path='js/schedule/schedule-utils.js') }}"></script>

@@ -15,6 +15,7 @@ from ortools.sat.python import cp_model
 
 from app.models.domain import WorkOrder, Assignment, Schedule
 from app.models.shift import Shift
+from app.services.preferences_service import load_preferences
 from app.services.shift_service import load_shifts
 
 
@@ -353,19 +354,9 @@ class ScheduleOptimizer:
 # Public API
 # ---------------------------------------------------------------------------
 
-_PREFERENCES_PATH = (
-    Path(__file__).resolve().parent.parent.parent / "data" / "preferences.json"
-)
-
-
 def apply_custom_preferences(work_orders: List[WorkOrder]) -> List[WorkOrder]:
     """Apply data-driven match/set rules from preferences.json to remap WO fields."""
-    if not _PREFERENCES_PATH.is_file():
-        return work_orders
-
-    with open(_PREFERENCES_PATH, encoding="utf-8") as f:
-        rules = json.load(f)
-
+    rules = load_preferences()
     if not rules:
         return work_orders
 
@@ -393,9 +384,41 @@ def optimize_schedule(
 ) -> Schedule:
     """Run the schedule optimizer and return the resulting schedule."""
     work_orders = apply_custom_preferences(work_orders)
-    return ScheduleOptimizer(
-        work_orders=work_orders,
+
+    hint_ids = set(hints or {})
+    horizon_end = start_date + timedelta(days=7) if start_date else None
+
+    direct_wos: List[WorkOrder] = []
+    optimizer_wos: List[WorkOrder] = []
+    for wo in work_orders:
+        is_current_week = wo.schedule_date and start_date and wo.schedule_date < start_date
+        is_beyond_horizon_pm = (
+            wo.type == "Preventive maintenance"
+            and wo.schedule_date
+            and horizon_end
+            and wo.schedule_date >= horizon_end
+            and wo.id not in hint_ids
+        )
+        if is_current_week or is_beyond_horizon_pm:
+            direct_wos.append(wo)
+        else:
+            optimizer_wos.append(wo)
+
+    schedule = ScheduleOptimizer(
+        work_orders=optimizer_wos,
         start_date=start_date,
         hints=hints,
         objective_gains=objective_gains,
     ).optimize()
+
+    for wo in direct_wos:
+        day_offset = (wo.schedule_date - start_date).days
+        schedule.assignments.append(
+            Assignment(
+                work_order_id=str(wo.id),
+                day_offset=day_offset,
+                resource_id=wo.trade,
+            )
+        )
+
+    return schedule

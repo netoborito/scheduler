@@ -24,6 +24,7 @@ from .services.shift_service import (
 from pydantic import BaseModel
 
 from .config import load_app_env
+from .routes.agent import router as agent_router
 
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -36,6 +37,7 @@ STATIC_DIR.mkdir(exist_ok=True)
 load_app_env()
 
 app = FastAPI(title="Industrial Maintenance Scheduler")
+app.include_router(agent_router)
 
 # Only mount static files if directory exists and has content
 if STATIC_DIR.exists():
