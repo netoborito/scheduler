@@ -105,7 +105,7 @@ def test_fetch_backlog_converts_api_dataframe(monkeypatch):
         lambda: mock_client,
     )
 
-    result = fetch_backlog(start_date=start, horizon_days=30)
+    result = fetch_backlog()
 
     assert len(result) == 1
     wo = result[0]

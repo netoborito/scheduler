@@ -11,28 +11,24 @@
   const getTradeColor = SchedulePage.getTradeColor;
   const buildWorkOrderContent = SchedulePage.buildWorkOrderContent;
 
-  function populateResourceSelect(schedule, workOrders) {
+  function populateResourceSelect(shiftAvailability) {
     const selectEl = document.getElementById("resource-select");
     if (!selectEl) return;
-    const resources = new Set();
-    (schedule?.assignments || []).forEach((a) => {
-      const r = String(a.resource_id || "").trim();
-      if (r) resources.add(r);
+    const trades = new Set();
+    (shiftAvailability || []).forEach((s) => {
+      const t = String(s.trade || "").trim();
+      if (t) trades.add(t);
     });
-    (workOrders || []).forEach((wo) => {
-      const r = String(wo.trade || "").trim();
-      if (r) resources.add(r);
-    });
-    const sorted = Array.from(resources).sort();
+    const sorted = Array.from(trades).sort();
     selectEl.innerHTML = "";
     const allOpt = document.createElement("option");
     allOpt.value = "";
     allOpt.textContent = "All resources";
     selectEl.appendChild(allOpt);
-    for (const r of sorted) {
+    for (const t of sorted) {
       const opt = document.createElement("option");
-      opt.value = r;
-      opt.textContent = r;
+      opt.value = t;
+      opt.textContent = t;
       selectEl.appendChild(opt);
     }
   }

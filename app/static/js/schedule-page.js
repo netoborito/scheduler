@@ -36,7 +36,7 @@
           state.shiftColors = data.shift_colors || {};
           state.shiftAvailability = data.shift_availability || [];
           state.manualScheduleOverrides = {};
-          SchedulePage.populateResourceSelect(state.latestSchedule, state.latestWorkOrders);
+          SchedulePage.populateResourceSelect(state.shiftAvailability);
           SchedulePage.rebuildAllCalendarEvents();
 
           if (!state.calendar) {
@@ -207,7 +207,7 @@
     initDragDrop();
 
     if (state.latestSchedule && state.latestWorkOrders && state.latestWorkOrders.length) {
-      SchedulePage.populateResourceSelect(state.latestSchedule, state.latestWorkOrders);
+      SchedulePage.populateResourceSelect(state.shiftAvailability);
       SchedulePage.rebuildAllCalendarEvents();
       if (state.calendar && state.latestSchedule.start_date) {
         try {

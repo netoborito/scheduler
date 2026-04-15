@@ -10,6 +10,8 @@ from typing import List, Optional
 import json
 
 from .services.excel_io import fetch_backlog, build_schedule_workbook
+from .services.gains_service import load_gains
+from .services.hints_service import load_hints
 from .services.optimizer import optimize_schedule
 from .utils.date_utils import get_next_monday
 from .models.shift import Shift
@@ -81,9 +83,13 @@ async def api_optimize(
 
     work_orders = fetch_backlog(start_date=start_date)
 
-    # optimize schedule
+    agent_hints = load_hints()
+    merged_hints = {**agent_hints, **(hints or {})} or None
+    objective_gains = load_gains()
     schedule = optimize_schedule(
-        work_orders=work_orders, start_date=start_date, hints=hints)
+        work_orders=work_orders, start_date=start_date, hints=merged_hints,
+        objective_gains=objective_gains,
+    )
 
     # print result to console and return schedule json
     print("api_optimize: work_orders", len(work_orders))

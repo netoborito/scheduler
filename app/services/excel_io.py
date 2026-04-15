@@ -15,10 +15,6 @@ from app.models.domain import WorkOrder, Schedule
 from app.services.cloud_backlog_client import CloudBacklogClient
 from app.utils.date_utils import get_next_monday
 
-
-HORIZON_DAYS = 7
-
-
 # ---------------------------------------------------------------------------
 # Parsing helpers
 # ---------------------------------------------------------------------------
@@ -79,14 +75,11 @@ def _get_wo_age(value: pd.Timestamp | date) -> int:
 
 def load_and_filter(
     df: pd.DataFrame,
-    start_date: date,
-    horizon_days: int = HORIZON_DAYS,
 ) -> pd.DataFrame:
-    """Filter the backlog DataFrame to work orders relevant to the scheduling horizon.
+    """Filter the backlog DataFrame to work orders relevant to scheduling.
 
     - Drops column `Equipment Description` if present.
     - Keeps only rows with `Status == 'Open - Ready to Schedule'`.
-    - Drops PMs due after scheduling horizon.
     """
     filtered = df.copy()
     filtered = filtered.drop(columns=["Equipment Description"], errors="ignore")
@@ -98,17 +91,6 @@ def load_and_filter(
         filtered["Sched. Start Date"], errors="coerce"
     )
 
-    end_date = start_date + timedelta(days=horizon_days)
-    start_ts = pd.Timestamp(start_date)
-    end_ts = pd.Timestamp(end_date)
-
-    # Remove PMs beyond the scheduling horizon
-    beyond_horizon_PMs = (filtered.get("Type") == "Preventive maintenance") & (
-        filtered["Sched. Start Date"]
-        > pd.Timestamp(start_ts) + timedelta(days=horizon_days * 2)
-    )
-    filtered = filtered[~beyond_horizon_PMs]
-
     return filtered
 
 
@@ -119,17 +101,15 @@ def load_and_filter(
 
 def fetch_backlog(
     start_date: Optional[date] = None,
-    horizon_days: Optional[int] = None,
 ) -> List[WorkOrder]:
-    """Fetch work order backlog from EAM API and filter by scheduling horizon."""
+    """Fetch work order backlog from EAM API and filter by scheduling requirements."""
     df = CloudBacklogClient().fetch_backlog()
 
     if start_date is None:
         start_date = get_next_monday()
-    if horizon_days is None:
-        horizon_days = HORIZON_DAYS
-    df = load_and_filter(df, start_date=start_date, horizon_days=horizon_days)
+    df = load_and_filter(df)
 
+    # Format the backlog into WorkOrder objects
     work_orders: List[WorkOrder] = []
     for _, row in df.iterrows():
         wo_id = str(row.get("Work Order", ""))
@@ -179,8 +159,15 @@ def fetch_backlog(
         if not wo_id or duration_hours <= 0 or not trade:
             continue
 
-        # Fix flag (schedule on sched date) for Safety + Preventative maintenance (i.e. EHS pm)
-        if type_raw == "Preventive maintenance" and safety:
+        # Fix flag (schedule on sched date) for Safety + Preventative maintenance (i.e. EHS pm).  Past due PMs are not fixed.
+        if (
+            type_raw == "Preventive maintenance"
+            and safety
+            and (
+                schedule_date >= start_date
+                and start_date < schedule_date + timedelta(days=7)
+            )
+        ):
             fixed = True
         else:
             fixed = False

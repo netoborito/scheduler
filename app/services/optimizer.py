@@ -38,8 +38,9 @@ DEFAULT_OBJECTIVE_GAINS = {
     "priority": 1,
     "safety": 1,
     "type": 1,
-    "load_balance": 1,
+    "load_balance": 2,
     "hints": 1,
+    "schedule_bonus": 10,
 }
 
 
@@ -243,22 +244,14 @@ class ScheduleOptimizer:
             for day in self.days:
                 if crew.is_active_on_day(day):
                     boolvar_in_manhours_per_day: List = []
-                    forced_manhours_per_day = 0
 
                     shift_boolvars = self._get_shift_boolvars(day, crew)
                     for (wo_id, _trade, _sched_day), boolvar in shift_boolvars.items():
                         wo = wo_by_id.get(wo_id)
-                        manhours = self._get_manhours(wo)
                         if wo is not None and wo.fixed:
-                            forced_manhours_per_day += manhours
+                            continue
+                        manhours = self._get_manhours(wo)
                         boolvar_in_manhours_per_day.append(boolvar * manhours)
-
-                    if forced_manhours_per_day > max_manhours_per_day:
-                        max_manhours_per_day = forced_manhours_per_day
-                        self.model.Proto().variables[max_load_var.Index()].domain[:] = [
-                            0,
-                            max_manhours_per_day,
-                        ]
 
                     var_load = self.model.NewIntVar(
                         0,
@@ -288,6 +281,10 @@ class ScheduleOptimizer:
         maximize_terms: List = []
         wo_by_id = {wo.id: wo for wo in self.work_orders}
         gains = self.objective_gains
+        max_wo_manhours = max(
+            (self._get_manhours(wo) for wo in self.work_orders), default=0
+        )
+        schedule_bonus = max_wo_manhours * gains["schedule_bonus"]
 
         for (wo_id, trade, day), var in self.x.items():
             wo = wo_by_id[wo_id]
@@ -298,7 +295,8 @@ class ScheduleOptimizer:
             maximize_terms.append(
                 var
                 * (
-                    wo.age_days * gains["age"]
+                    schedule_bonus
+                    + wo.age_days * gains["age"]
                     + (5 - wo.priority) * gains["priority"]
                     + safety_as_int * gains["safety"]
                     + type_as_int * gains["type"]
@@ -354,6 +352,7 @@ class ScheduleOptimizer:
 # Public API
 # ---------------------------------------------------------------------------
 
+
 def apply_custom_preferences(work_orders: List[WorkOrder]) -> List[WorkOrder]:
     """Apply data-driven match/set rules from preferences.json to remap WO fields."""
     rules = load_preferences()
@@ -387,11 +386,16 @@ def optimize_schedule(
 
     hint_ids = set(hints or {})
     horizon_end = start_date + timedelta(days=7) if start_date else None
+    current_week_start = start_date - timedelta(days=7) if start_date else None
 
     direct_wos: List[WorkOrder] = []
     optimizer_wos: List[WorkOrder] = []
     for wo in work_orders:
-        is_current_week = wo.schedule_date and start_date and wo.schedule_date < start_date
+        is_current_week = (
+            wo.schedule_date
+            and start_date
+            and current_week_start <= wo.schedule_date < start_date
+        )
         is_beyond_horizon_pm = (
             wo.type == "Preventive maintenance"
             and wo.schedule_date
