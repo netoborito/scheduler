@@ -39,7 +39,7 @@ DEFAULT_OBJECTIVE_GAINS = {
     "safety": 1,
     "type": 1,
     "load_balance": 2,
-    "hints": 1,
+    "hints": 5,
     "schedule_bonus": 10,
 }
 

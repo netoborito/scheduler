@@ -44,6 +44,14 @@ def _build_rest_url() -> str:
     return ""
 
 
+def get_openai_settings() -> dict:
+    """Return OpenAI API key and model from environment."""
+    return {
+        "api_key": os.environ.get("OPENAI_API_KEY", "").strip(),
+        "model": os.environ.get("OPENAI_MODEL", "gpt-4o").strip(),
+    }
+
+
 def get_backlog_integration_settings() -> BacklogIntegrationSettings:
     timeout_raw = os.environ.get("BACKLOG_HTTP_TIMEOUT_SECONDS", "30").strip()
     try:

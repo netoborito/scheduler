@@ -150,6 +150,18 @@
     </div>
   </div>
 
+  <!-- ── Chat Drawer ── -->
+  <div id="chat-panel" class="chat-panel">
+    <button id="chat-toggle" class="chat-toggle">Chat</button>
+    <div class="chat-window">
+      <div id="chat-body" class="chat-body"></div>
+      <div class="chat-input-bar">
+        <input id="chat-input" type="text" placeholder="Ask the scheduling assistant..." autocomplete="off" />
+        <button id="chat-send">Send</button>
+      </div>
+    </div>
+  </div>
+
   <script src="{{ request.url_for('static', path='js/schedule/schedule-state.js') }}"></script>
   <script src="{{ request.url_for('static', path='js/api/endpoints.js') }}"></script>
   <script src="{{ request.url_for('static', path='js/schedule/schedule-utils.js') }}"></script>
@@ -158,6 +170,7 @@
   <script src="{{ request.url_for('static', path='js/schedule/schedule-tables.js') }}"></script>
   <script src="{{ request.url_for('static', path='js/schedule/schedule-api.js') }}"></script>
   <script src="{{ request.url_for('static', path='js/schedule-page.js') }}"></script>
+  <script src="{{ request.url_for('static', path='js/chat.js') }}"></script>
 </body>
 
 </html>

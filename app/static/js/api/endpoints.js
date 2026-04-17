@@ -12,6 +12,7 @@
   window.Endpoints.optimize = "/api/optimize";
   window.Endpoints.optimizeXlsx = "/api/optimize/xlsx";
   window.Endpoints.saveScheduleHints = "/api/schedule/hints";
+  window.Endpoints.chat = "/api/agent/chat";
 
   window.Endpoints.shifts = {
     list: "/api/shifts",

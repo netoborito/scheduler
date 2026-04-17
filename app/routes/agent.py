@@ -7,8 +7,10 @@ from datetime import timedelta
 from typing import Dict, List
 
 from fastapi import APIRouter, HTTPException
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
+from app.services.chat_service import REFRESH_SENTINEL, run_chat
 from app.services.excel_io import fetch_backlog
 from app.services.gains_service import load_gains, save_gains, validate_gains
 from app.services.hints_service import load_hints, save_hints, validate_hint
@@ -50,6 +52,15 @@ class HintItem(BaseModel):
 
 class HintsPayload(BaseModel):
     hints: List[HintItem]
+
+
+class ChatMessage(BaseModel):
+    role: str
+    content: str
+
+
+class ChatPayload(BaseModel):
+    messages: List[ChatMessage]
 
 
 # ---------------------------------------------------------------------------
@@ -118,7 +129,7 @@ async def get_hints() -> dict:
 
 @router.put("/hints")
 async def put_hints(payload: HintsPayload) -> dict:
-    """Replace all agent hints (validates each entry)."""
+    """Merge agent hints (validates each entry, last write wins per WO)."""
     converted = {}
     for i, item in enumerate(payload.hints):
         try:
@@ -126,8 +137,10 @@ async def put_hints(payload: HintsPayload) -> dict:
         except ValueError as e:
             raise HTTPException(status_code=400, detail=f"Hint {i}: {e}")
         converted[item.work_order_id] = (item.day, item.trade, item.scheduled)
-    save_hints(converted)
-    return {"status": "ok", "count": len(converted)}
+    existing = load_hints()
+    existing.update(converted)
+    save_hints(existing)
+    return {"status": "ok", "count": len(existing)}
 
 
 @router.delete("/hints")
@@ -207,3 +220,24 @@ async def post_schedule() -> dict:
             },
         },
     }
+
+
+# ---------------------------------------------------------------------------
+# Chat endpoint
+# ---------------------------------------------------------------------------
+
+
+@router.post("/chat")
+async def post_chat(payload: ChatPayload) -> StreamingResponse:
+    """Stream an LLM response with tool-use over SSE."""
+    messages = [m.model_dump() for m in payload.messages]
+
+    async def event_stream():
+        async for token in run_chat(messages):
+            if token == REFRESH_SENTINEL:
+                yield "data: [REFRESH]\n\n"
+            else:
+                yield f"data: {token}\n\n"
+        yield "data: [DONE]\n\n"
+
+    return StreamingResponse(event_stream(), media_type="text/event-stream")
