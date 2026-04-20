@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 import os
-from datetime import timedelta, datetime, timezone
+from datetime import date, timedelta, datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -70,10 +70,9 @@ def _parse_eam_payload_to_dataframe(data: dict[str, Any]) -> pd.DataFrame:
 # ---------------------------------------------------------------------------
 
 
-def _generate_date_block(wo: WorkOrder, schedule: Schedule) -> dict[str, Any]:
+def _generate_date_block(schedule_start_date: date, day_offset: int) -> dict[str, Any]:
     """Build EAM date block for a work order's scheduled date."""
-    assignment = next(a for a in schedule.assignments if a.work_order_id == str(wo.id))
-    schedule_date = schedule.start_date + timedelta(days=assignment.day_offset)
+    schedule_date = schedule_start_date + timedelta(days=day_offset)
     year_ux = int(
         datetime(schedule_date.year, 1, 1, tzinfo=timezone.utc).timestamp() * 1000
     )
@@ -167,22 +166,31 @@ class CloudBacklogClient:
         self,
         dateblock: dict[str, Any],
         wo_id: int,
+        trade: str | None = None,
     ) -> dict[str, Any]:
-        return {
+        payload: dict[str, Any] = {
             "WORKORDERID": {
                 "JOBNUM": wo_id,
             },
             "STARTDATE": dateblock,
         }
+        if trade:
+            payload["ASSIGNEDTO"] = trade  # TODO: replace with actual EAM field name
+        return payload
 
     def patch_eam_schedule_data(
         self,
         wo: WorkOrder,
         schedule: Schedule,
     ) -> httpx.Response:
-        """PATCH work order schedule data to EAM."""
-        dateblock = _generate_date_block(wo, schedule)
-        body = self._build_schedule_data_patch_payload(dateblock=dateblock, wo_id=wo.id)
+        """PATCH work order schedule data and trade assignment to EAM."""
+        assignment = next(a for a in schedule.assignments if a.work_order_id == str(wo.id))
+        dateblock = _generate_date_block(schedule.start_date, assignment.day_offset)
+        body = self._build_schedule_data_patch_payload(
+            dateblock=dateblock,
+            wo_id=wo.id,
+            trade=assignment.resource_id,
+        )
         url = self._work_order_url(wo.id)
 
         _, response = self._request_json_with_response("PATCH", url, body)

@@ -165,8 +165,36 @@
     state.shiftAvailability = saved.shiftAvailability || [];
   }
 
+  /** GET the backlog (work orders + shift metadata) without running the optimizer. */
+  async function fetchBacklog() {
+    const url = Endpoints.backlog || "/api/backlog";
+    const response = await fetch(url);
+    if (!response.ok) throw new Error("Failed to fetch backlog");
+    return response.json();
+  }
+
+  /** POST the finalized schedule to the cloud EAM database. */
+  async function postFinalizeSchedule() {
+    const url = Endpoints.finalizeSchedule || "/api/schedule/finalize";
+    const response = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        latestSchedule: state.latestSchedule,
+        latestWorkOrders: state.latestWorkOrders,
+      }),
+    });
+    if (!response.ok) {
+      const detail = await response.text();
+      throw new Error("Finalize failed: " + detail);
+    }
+    return response.json();
+  }
+
   SchedulePage.setStatus = setStatus;
   SchedulePage.postOptimize = postOptimize;
+  SchedulePage.postFinalizeSchedule = postFinalizeSchedule;
+  SchedulePage.fetchBacklog = fetchBacklog;
   SchedulePage.buildHintsPayload = buildHintsPayload;
   SchedulePage.persistScheduleState = persistScheduleState;
   SchedulePage.restoreScheduleState = restoreScheduleState;

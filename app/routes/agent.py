@@ -10,7 +10,7 @@ from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
-from app.services.chat_service import REFRESH_SENTINEL, run_chat
+from app.services.chat_service import PLACE_SENTINEL, REFRESH_SENTINEL, run_chat
 from app.services.excel_io import fetch_backlog
 from app.services.gains_service import load_gains, save_gains, validate_gains
 from app.services.hints_service import load_hints, save_hints, validate_hint
@@ -234,7 +234,10 @@ async def post_chat(payload: ChatPayload) -> StreamingResponse:
 
     async def event_stream():
         async for token in run_chat(messages):
-            if token == REFRESH_SENTINEL:
+            if token.startswith(PLACE_SENTINEL):
+                payload = token[len(PLACE_SENTINEL):]
+                yield f"data: [PLACE:{payload}]\n\n"
+            elif token == REFRESH_SENTINEL:
                 yield "data: [REFRESH]\n\n"
             else:
                 yield f"data: {token}\n\n"

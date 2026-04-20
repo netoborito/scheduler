@@ -248,8 +248,6 @@ class ScheduleOptimizer:
                     shift_boolvars = self._get_shift_boolvars(day, crew)
                     for (wo_id, _trade, _sched_day), boolvar in shift_boolvars.items():
                         wo = wo_by_id.get(wo_id)
-                        if wo is not None and wo.fixed:
-                            continue
                         manhours = self._get_manhours(wo)
                         boolvar_in_manhours_per_day.append(boolvar * manhours)
 
@@ -384,7 +382,9 @@ def optimize_schedule(
     """Run the schedule optimizer and return the resulting schedule."""
     work_orders = apply_custom_preferences(work_orders)
 
-    hint_ids = set(hints or {})
+    placed_hint_ids = {
+        wo_id for wo_id, (_, _, scheduled) in (hints or {}).items() if scheduled
+    }
     horizon_end = start_date + timedelta(days=7) if start_date else None
     current_week_start = start_date - timedelta(days=7) if start_date else None
 
@@ -401,7 +401,7 @@ def optimize_schedule(
             and wo.schedule_date
             and horizon_end
             and wo.schedule_date >= horizon_end
-            and wo.id not in hint_ids
+            and wo.id not in placed_hint_ids
         )
         if is_current_week or is_beyond_horizon_pm:
             direct_wos.append(wo)

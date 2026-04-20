@@ -12,49 +12,50 @@
 
 <body>
   <div class="page">
-    <div class="card">
-      <h1>Industrial Maintenance Scheduler</h1>
-      <p style="font-size: 0.95rem; color: #9ca3af; margin-top: 0">
-        Upload your work order backlog (.xlsx), choose a planning horizon, and
-        generate an optimized schedule.
-      </p>
-      <a href="/shifts" style="color: #60a5fa; text-decoration: none; font-size: 0.9rem">
-        Manage Shifts →
-      </a>
-      <br><br>
-      <form id="optimize-form">
-        <div class="form-row">
-          <div style="margin-top: 16px">
-            <button type="submit">Optimize &amp; Visualize</button>
-            <button type="button" class="secondary" id="download-xlsx-btn">
-              Download Schedule (.xlsx)
-            </button>
-          </div>
+    <div class="ribbon">
+      <div class="ribbon-row">
+        <div class="ribbon-left">
+          <img src="{{ request.url_for('static', path='img/befesa-logo.png') }}" alt="Befesa" class="ribbon-logo" />
+          <span class="ribbon-title">Maintenance Scheduler</span>
         </div>
-        <p style="font-size: 0.85rem; color: #9ca3af; margin-top: 8px; margin-bottom: 0">
-          Schedule horizon: 7 days starting from
-          {{ default_start_date_display }} at 7:00 AM
-        </p>
-      </form>
-      <div class="form-row" style="margin-top: 12px; margin-bottom: 0">
-        <div>
-          <label for="resource-select">Resource</label><br />
-          <select id="resource-select"></select>
+        <div class="ribbon-center">
+          <form id="optimize-form" class="ribbon-actions">
+            <button type="button" id="new-schedule-btn" class="secondary" title="Clear all adjustments and build a fresh schedule from scratch"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><line x1="12" y1="14" x2="12" y2="20"/><line x1="9" y1="17" x2="15" y2="17"/></svg> New Schedule</button>
+            <span class="ribbon-btn-sep"></span>
+            <button type="submit" title="Re-optimize keeping your current adjustments"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg> Update Schedule</button>
+            <span class="ribbon-btn-sep"></span>
+            <button type="button" class="secondary" id="download-xlsx-btn" title="Export the current schedule as an Excel spreadsheet"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Download .xlsx</button>
+            <span class="ribbon-btn-sep"></span>
+            <button type="button" class="finalize-btn" id="finalize-btn" disabled title="Push scheduled dates to EAM — under testing"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> Finalize</button>
+          </form>
+          <span class="ribbon-btn-sep"></span>
+          <div class="ribbon-filter">
+            <label for="resource-select">Resource</label>
+            <select id="resource-select"></select>
+          </div>
+          <span class="ribbon-btn-sep"></span>
+          <a href="/shifts" class="ribbon-link"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg> Shifts</a>
+        </div>
+        <div class="ribbon-right">
+          <div class="status" id="status"></div>
         </div>
       </div>
-      <p style="font-size: 0.85rem; color: #9ca3af; margin-top: 6px; margin-bottom: 0">
-        Filters weekly schedule, scheduled, and unscheduled lists below.
-      </p>
-      <div class="status" id="status"></div>
+      <div class="ribbon-row ribbon-row-nav">
+        <div class="ribbon-nav">
+          <button type="button" class="ribbon-nav-btn" id="cal-prev" title="Previous"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg></button>
+          <button type="button" class="ribbon-nav-btn" id="cal-next" title="Next"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 6 15 12 9 18"/></svg></button>
+          <button type="button" class="ribbon-nav-btn" id="cal-today">Today</button>
+          <span class="ribbon-date-range" id="cal-title"></span>
+        </div>
+        <span class="ribbon-hint">{{ default_start_date_display }} · 7-day horizon</span>
+      </div>
     </div>
 
-    <div class="card">
-      <h2 style="margin-top: 0">Schedule Calendar</h2>
+    <div class="card card-schedule">
       <div id="calendar" data-default-start="{{ default_start_date }}"></div>
     </div>
 
-    <div class="card">
-      <h2 style="margin-top: 0">Work Orders</h2>
+    <div class="card card--light">
       <div class="stacked-panels">
         <div class="panel" style="display: none">
           <h3>Scheduled Work Orders</h3>
@@ -74,7 +75,6 @@
           </table>
         </div>
         <div class="panel">
-          <h3>Unscheduled Work Orders</h3>
           <table class="panel-table unscheduled-table">
             <thead>
               <tr>
@@ -146,6 +146,25 @@
       <div style="margin-top:12px; text-align:right">
         <button type="button" class="secondary" id="wo-edit-cancel">Cancel</button>
         <button type="button" id="wo-edit-save">Save</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Finalize Confirmation Modal ── -->
+  <div id="finalize-modal" class="wo-edit-overlay">
+    <div class="wo-edit-card finalize-card">
+      <h3 style="margin-top:0" class="finalize-title">Finalize Schedule</h3>
+      <div class="finalize-warning">
+        <span class="finalize-warning-icon">&#9888;</span>
+        <p>
+          This will push all scheduled work order dates to the cloud EAM database.
+          This action <strong>cannot be undone</strong>.
+        </p>
+      </div>
+      <p class="finalize-summary" id="finalize-summary"></p>
+      <div class="finalize-actions">
+        <button type="button" class="secondary" id="finalize-cancel">Cancel</button>
+        <button type="button" class="finalize-confirm-btn" id="finalize-confirm">Confirm &amp; Push to EAM</button>
       </div>
     </div>
   </div>

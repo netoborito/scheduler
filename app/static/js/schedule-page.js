@@ -70,6 +70,17 @@
       });
     }
 
+    const newBtn = document.getElementById("new-schedule-btn");
+    if (newBtn && form) {
+      newBtn.addEventListener("click", async () => {
+        state.manualScheduleOverrides = {};
+        state.manualScheduledIds = new Set();
+        state.manualUnscheduledIds = new Set();
+        try { await fetch("/api/agent/hints", { method: "DELETE" }); } catch (_e) {}
+        form.requestSubmit();
+      });
+    }
+
     const downloadBtn = document.getElementById("download-xlsx-btn");
     if (downloadBtn) {
       downloadBtn.addEventListener("click", async () => {
@@ -102,6 +113,57 @@
         } catch (err) {
           console.error(err);
           SchedulePage.setStatus("Error generating .xlsx. See console for details.");
+        }
+      });
+    }
+
+    const finalizeBtn = document.getElementById("finalize-btn");
+    const finalizeModal = document.getElementById("finalize-modal");
+    const finalizeCancel = document.getElementById("finalize-cancel");
+    const finalizeConfirm = document.getElementById("finalize-confirm");
+    const finalizeSummary = document.getElementById("finalize-summary");
+
+    if (finalizeBtn && finalizeModal) {
+      finalizeBtn.addEventListener("click", () => {
+        if (!state.latestSchedule || !state.latestSchedule.assignments || !state.latestSchedule.assignments.length) {
+          alert("Run the optimizer first to generate a schedule before finalizing.");
+          return;
+        }
+        const count = state.latestSchedule.assignments.length;
+        finalizeSummary.textContent = count + " work order" + (count !== 1 ? "s" : "") +
+          " will be updated in EAM starting " + state.latestSchedule.start_date + ".";
+        finalizeModal.classList.add("visible");
+      });
+
+      finalizeCancel.addEventListener("click", () => {
+        finalizeModal.classList.remove("visible");
+      });
+
+      finalizeModal.addEventListener("click", (e) => {
+        if (e.target === finalizeModal) finalizeModal.classList.remove("visible");
+      });
+
+      finalizeConfirm.addEventListener("click", async () => {
+        finalizeConfirm.disabled = true;
+        finalizeConfirm.textContent = "Pushing to EAM...";
+        SchedulePage.setStatus("Finalizing schedule — pushing dates to EAM...");
+        try {
+          const result = await SchedulePage.postFinalizeSchedule();
+          finalizeModal.classList.remove("visible");
+          const msg = "Finalized: " + result.updated + " work order" + (result.updated !== 1 ? "s" : "") + " updated in EAM.";
+          if (result.failed > 0) {
+            SchedulePage.setStatus(msg + " " + result.failed + " failed — see console.");
+            console.error("Finalize errors:", result.errors);
+          } else {
+            SchedulePage.setStatus(msg);
+          }
+        } catch (err) {
+          console.error(err);
+          finalizeModal.classList.remove("visible");
+          SchedulePage.setStatus("Error finalizing schedule. See console for details.");
+        } finally {
+          finalizeConfirm.disabled = false;
+          finalizeConfirm.innerHTML = "Confirm &amp; Push to EAM";
         }
       });
     }
@@ -224,6 +286,23 @@
         SchedulePage.applyCalendarResourceFilter();
       }
       SchedulePage.updateTradeViews();
+    }
+
+    if (!state.latestSchedule || !state.latestWorkOrders || !state.latestWorkOrders.length) {
+      SchedulePage.setStatus("Loading backlog...");
+      SchedulePage.fetchBacklog()
+        .then(function (data) {
+          state.latestWorkOrders = data.work_orders || [];
+          state.shiftColors = data.shift_colors || {};
+          state.shiftAvailability = data.shift_availability || [];
+          SchedulePage.populateResourceSelect(state.shiftAvailability);
+          SchedulePage.updateTradeViews();
+          SchedulePage.setStatus("Backlog loaded (" + state.latestWorkOrders.length + " work orders).");
+        })
+        .catch(function (err) {
+          console.error("Failed to fetch backlog", err);
+          SchedulePage.setStatus("Failed to load backlog. See console for details.");
+        });
     }
 
     // Unscheduled column filters

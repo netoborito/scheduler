@@ -4,20 +4,9 @@ from __future__ import annotations
 
 import json
 import re
-import time
 from collections import defaultdict
 from datetime import timedelta
-from pathlib import Path
 from typing import AsyncGenerator, Dict, List
-
-# region agent log
-_DEBUG_LOG = Path("debug-056d36.log")
-def _dlog(hypothesis: str, location: str, message: str, data: dict) -> None:
-    import json as _j
-    line = _j.dumps({"sessionId": "056d36", "hypothesisId": hypothesis, "location": location, "message": message, "data": data, "timestamp": int(time.time() * 1000)})
-    with open(_DEBUG_LOG, "a", encoding="utf-8") as _f:
-        _f.write(line + "\n")
-# endregion
 
 from openai import AsyncOpenAI
 
@@ -25,7 +14,12 @@ from app.config import get_openai_settings
 from app.services.excel_io import fetch_backlog
 from app.services.gains_service import load_gains, save_gains, validate_gains
 from app.services.hints_service import load_hints, save_hints, validate_hint
-from app.services.optimizer import DAYS, DEFAULT_OBJECTIVE_GAINS, optimize_schedule
+from app.services.optimizer import (
+    DAYS,
+    DEFAULT_OBJECTIVE_GAINS,
+    apply_custom_preferences,
+    optimize_schedule,
+)
 from app.services.preferences_service import (
     load_preferences,
     save_preferences,
@@ -57,10 +51,34 @@ Internal concepts (the user does not need to know these names):
   `scheduled: false` hints for the relevant work orders on that day.
 - **Preferences** are regex rules that remap work-order fields before optimization.
 - **Schedule** runs the CP-SAT optimizer and returns the weekly assignment.
+- **Current Schedule** reads the current optimizer output so you can see which work
+  orders are on which shift/resource row. Use this when the user asks about load,
+  balancing, or moving work between shifts.
+- **Place** directly positions work orders on the calendar without re-optimizing.
+  Accepts one or many placements. Trade defaults to the work order's own trade;
+  pass a different trade to reassign (like double-click edit).  This is best when
+  it is undesireable to run the optimizer, which, for example, will schedule unhinted 
+  work orders in any vacant slots.
 
-Before creating or updating hints, **always call `get_backlog`** to look up the work
-order first. Use the exact `id` and `trade` values from the result. If the user's
-description is ambiguous, show them the matching work orders and ask which one they mean.
+Trade vs. Resource: The calendar has rows for each **shift** (resource). Preference
+rules may remap a work order's raw trade to a different shift name (e.g. E/I PMs
+may map to "NC-E/I PM" even though the backlog trade is "NC-E/I"). Both
+`get_backlog` and `get_current_schedule` reflect these remapped trades, so when the
+user refers to a calendar row name like "NC-E/I PM", search by that name.
+
+Before creating hints or placing work orders, **always call `get_backlog`** first
+(unless the backlog is already in context from an earlier tool call). Use the exact
+`id` values from the result. When results are truncated, `all_ids` contains the
+complete list of matching `{id, trade}` pairs — use those for batch operations.
+When the user refers to a group (e.g. "all electrical work", "the pump jobs"),
+search and act on all matches — do not ask for individual confirmation. Only ask
+for clarification when a single-WO request genuinely matches multiple unrelated
+work orders.
+
+When the user asks about the current schedule, load balance, or moving work orders
+between shifts, call `get_current_schedule` to see the actual assignments. Do not
+rely solely on the backlog context — the schedule shows where work orders actually
+landed after optimization and preference remapping.
 
 When the user asks you to change something, use the available tools. Always confirm
 what you changed and summarize the effect. Keep responses concise and actionable.
@@ -199,7 +217,9 @@ TOOLS: List[dict] = [
             "description": (
                 "Search the current work-order backlog. Returns matching work orders "
                 "with their id, trade, description, priority, type, duration, equipment, "
-                "and dept. Fuzzy-matches across all fields (hyphens/separators ignored)."
+                "and dept. Fuzzy-matches across all fields (hyphens/separators ignored). "
+                "When results exceed 50, the response includes an `all_ids` list with "
+                "every matching {id, trade} pair. Use `all_ids` for batch placements."
             ),
             "parameters": {
                 "type": "object",
@@ -216,12 +236,63 @@ TOOLS: List[dict] = [
     {
         "type": "function",
         "function": {
+            "name": "get_current_schedule",
+            "description": (
+                "View the current schedule: which work orders are assigned to which "
+                "shift/resource row on which day. Each assignment includes the "
+                "`resource` field (calendar row name, e.g. 'NC-E/I PM') which may "
+                "differ from the raw backlog `trade` due to preference rules. "
+                "Use this to inspect load per shift before moving work orders."
+            ),
+            "parameters": {"type": "object", "properties": {}, "required": []},
+        },
+    },
+    {
+        "type": "function",
+        "function": {
             "name": "run_schedule",
             "description": (
                 "Run the CP-SAT optimizer with current gains, hints, and preferences. "
                 "Returns a summary with assigned/unassigned counts and per-shift daily hours."
             ),
             "parameters": {"type": "object", "properties": {}, "required": []},
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "place_work_order",
+            "description": (
+                "Place one or more work orders on specific days of the calendar. "
+                "This immediately shows them without running the optimizer. "
+                "Each placement's trade defaults to the work order's own trade "
+                "from the backlog. Pass a different trade to reassign "
+                "(same as a user double-clicking to edit)."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "placements": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "work_order_id": {"type": "string"},
+                                "day": {"type": "string", "enum": DAYS},
+                                "trade": {
+                                    "type": "string",
+                                    "description": (
+                                        "Override trade/resource. "
+                                        "Omit to use the backlog trade."
+                                    ),
+                                },
+                            },
+                            "required": ["work_order_id", "day"],
+                        },
+                    }
+                },
+                "required": ["placements"],
+            },
         },
     },
 ]
@@ -243,16 +314,20 @@ def _fuzzy_match(wo: dict, search: str) -> bool:
     """Return True if every search token appears in at least one field value."""
     tokens = search.lower().split()
     field_values = [_normalize(str(v)) for v in wo.values()]
-    return all(
-        any(_normalize(tok) in fv for fv in field_values)
-        for tok in tokens
-    )
+    return all(any(_normalize(tok) in fv for fv in field_values) for tok in tokens)
 
 
 def _fetch_backlog_map() -> Dict[str, dict]:
-    """Return the current backlog as {wo_id: compact_dict}."""
+    """Return the current backlog as {wo_id: compact_dict}.
+
+    Applies custom preference rules so that the ``trade`` field reflects the
+    effective calendar resource (e.g. "NC-E/I PM") rather than the raw EAM
+    trade.  This ensures backlog searches, hints, and context summaries all
+    use the same trade names the user sees on the calendar.
+    """
     start_date = get_next_monday()
     work_orders = fetch_backlog(start_date=start_date)
+    work_orders = apply_custom_preferences(work_orders)
     return {
         str(wo.id): {
             "id": str(wo.id),
@@ -276,7 +351,11 @@ def _build_context_summary() -> str:
         return ""
 
     start_date = get_next_monday()
-    lines = [f"Schedule week: {start_date.isoformat()}", f"Backlog: {len(backlog)} work orders", ""]
+    lines = [
+        f"Schedule week: {start_date.isoformat()}",
+        f"Backlog: {len(backlog)} work orders",
+        "",
+    ]
 
     ids_by_trade: Dict[str, List[str]] = defaultdict(list)
     for wo in backlog.values():
@@ -288,7 +367,9 @@ def _build_context_summary() -> str:
     hints = load_hints()
     if hints:
         lines.append("")
-        parts = [f"{wo_id} \u2192 {day}/{trade}" for wo_id, (day, trade, _) in hints.items()]
+        parts = [
+            f"{wo_id} \u2192 {day}/{trade}" for wo_id, (day, trade, _) in hints.items()
+        ]
         lines.append(f"Active hints: {', '.join(parts)}")
 
     gains = load_gains()
@@ -308,7 +389,9 @@ def _build_context_summary() -> str:
 def dispatch_tool(name: str, arguments: dict) -> str:
     """Execute a tool call and return the JSON-serialized result."""
     if name == "get_gains":
-        return json.dumps({"gains": load_gains(), "defaults": dict(DEFAULT_OBJECTIVE_GAINS)})
+        return json.dumps(
+            {"gains": load_gains(), "defaults": dict(DEFAULT_OBJECTIVE_GAINS)}
+        )
 
     if name == "update_gains":
         gains = arguments["gains"]
@@ -357,6 +440,9 @@ def dispatch_tool(name: str, arguments: dict) -> str:
         save_preferences(rules)
         return json.dumps({"status": "ok", "count": len(rules)})
 
+    if name == "get_current_schedule":
+        return json.dumps(_run_schedule())
+
     if name == "get_backlog":
         backlog = _fetch_backlog_map()
         search = (arguments.get("search") or "").strip()
@@ -364,10 +450,6 @@ def dispatch_tool(name: str, arguments: dict) -> str:
             matches = [wo for wo in backlog.values() if _fuzzy_match(wo, search)]
         else:
             matches = list(backlog.values())
-        # region agent log
-        trades_in_backlog = sorted({wo["trade"] for wo in backlog.values()})
-        _dlog("A", "chat_service.py:get_backlog", "backlog_search", {"search": search, "total_backlog": len(backlog), "match_count": len(matches), "trades": trades_in_backlog})
-        # endregion
         truncated = len(matches) > _MAX_BACKLOG_RESULTS
         result: dict = {
             "work_orders": matches[:_MAX_BACKLOG_RESULTS],
@@ -375,17 +457,54 @@ def dispatch_tool(name: str, arguments: dict) -> str:
             "truncated": truncated,
         }
         if truncated:
-            result["all_ids"] = [{"id": wo["id"], "trade": wo["trade"]} for wo in matches]
+            result["all_ids"] = [
+                {"id": wo["id"], "trade": wo["trade"]} for wo in matches
+            ]
         return json.dumps(result)
 
     if name == "run_schedule":
         return json.dumps(_run_schedule())
 
+    if name == "place_work_order":
+        backlog = _fetch_backlog_map()
+        converted = {}
+        result_placements = []
+        for item in arguments["placements"]:
+            wo_id = item["work_order_id"]
+            if wo_id not in backlog:
+                raise ValueError(f"Work order {wo_id!r} not found in backlog")
+            trade = item.get("trade") or backlog[wo_id]["trade"]
+            day = item["day"]
+            validate_hint(day, trade, True)
+            converted[wo_id] = (day, trade, True)
+            result_placements.append(
+                {
+                    "work_order_id": wo_id,
+                    "day_offset": DAYS.index(day),
+                    "resource_id": trade,
+                }
+            )
+        existing = load_hints()
+        existing.update(converted)
+        save_hints(existing)
+        return json.dumps(
+            {
+                "status": "ok",
+                "count": len(result_placements),
+                "placements": result_placements,
+            }
+        )
+
     return json.dumps({"error": f"Unknown tool: {name}"})
 
 
 def _run_schedule() -> dict:
-    """Run the optimizer and return a denormalized result dict."""
+    """Run the optimizer and return a denormalized result dict.
+
+    Each assigned entry includes both ``trade`` (raw backlog trade) and
+    ``resource`` (the calendar shift row, which may differ after preference
+    remapping).
+    """
     start_date = get_next_monday()
     gains = load_gains()
     hints = load_hints()
@@ -408,18 +527,23 @@ def _run_schedule() -> dict:
             continue
         assigned_ids.add(str(wo.id))
         sched_date = start_date + timedelta(days=a.day_offset)
-        day_name = DAYS[a.day_offset] if 0 <= a.day_offset < len(DAYS) else str(a.day_offset)
+        day_name = (
+            DAYS[a.day_offset] if 0 <= a.day_offset < len(DAYS) else str(a.day_offset)
+        )
         daily_hours[a.resource_id][day_name] += wo.duration_hours
-        assigned.append({
-            "work_order_id": str(wo.id),
-            "date": sched_date.isoformat(),
-            "day_of_week": day_name,
-            "trade": wo.trade,
-            "description": wo.description,
-            "priority": wo.priority,
-            "duration_hours": wo.duration_hours,
-            "type": wo.type,
-        })
+        assigned.append(
+            {
+                "work_order_id": str(wo.id),
+                "date": sched_date.isoformat(),
+                "day_of_week": day_name,
+                "trade": wo.trade,
+                "resource": a.resource_id,
+                "description": wo.description,
+                "priority": wo.priority,
+                "duration_hours": wo.duration_hours,
+                "type": wo.type,
+            }
+        )
 
     unassigned = [
         {"work_order_id": str(wo.id), "trade": wo.trade, "priority": wo.priority}
@@ -449,8 +573,13 @@ def _run_schedule() -> dict:
 
 MAX_TOOL_ROUNDS = 10
 REFRESH_SENTINEL = "\x00REFRESH"
+PLACE_SENTINEL = "\x00PLACE"
 MUTATING_TOOLS = {
-    "update_gains", "update_hints", "clear_hints", "update_preferences", "run_schedule",
+    "update_gains",
+    "update_hints",
+    "clear_hints",
+    "update_preferences",
+    "run_schedule",
 }
 
 
@@ -475,6 +604,7 @@ async def run_chat(messages: List[dict]) -> AsyncGenerator[str, None]:
         system_msgs.append({"role": "system", "content": context})
     conversation = system_msgs + messages
     mutated = False
+    placements: list = []
 
     for _ in range(MAX_TOOL_ROUNDS):
         response = await client.chat.completions.create(
@@ -516,11 +646,16 @@ async def run_chat(messages: List[dict]) -> AsyncGenerator[str, None]:
                         entry["arguments"] += tc.function.arguments
 
         if not has_tool_calls:
-            if mutated:
+            if placements:
+                yield PLACE_SENTINEL + json.dumps(placements)
+            elif mutated:
                 yield REFRESH_SENTINEL
             return
 
-        assistant_msg: dict = {"role": "assistant", "content": assistant_content or None}
+        assistant_msg: dict = {
+            "role": "assistant",
+            "content": assistant_content or None,
+        }
         assistant_msg["tool_calls"] = [
             {
                 "id": tc["id"],
@@ -535,21 +670,21 @@ async def run_chat(messages: List[dict]) -> AsyncGenerator[str, None]:
             if tc["name"] in MUTATING_TOOLS:
                 mutated = True
             args = json.loads(tc["arguments"]) if tc["arguments"] else {}
-            # region agent log
-            _dlog("A,B,C,D,E", "chat_service.py:dispatch", "tool_call", {"name": tc["name"], "arguments": args})
-            # endregion
             try:
                 result = dispatch_tool(tc["name"], args)
             except (ValueError, KeyError, TypeError) as exc:
                 result = json.dumps({"error": str(exc)})
-                # region agent log
-                _dlog("E", "chat_service.py:dispatch_error", "tool_error", {"name": tc["name"], "error": str(exc)})
-                # endregion
-            # region agent log
-            _dlog("A,B,D", "chat_service.py:dispatch_result", "tool_result", {"name": tc["name"], "result_len": len(result), "result_preview": result[:500]})
-            # endregion
-            conversation.append({
-                "role": "tool",
-                "tool_call_id": tc["id"],
-                "content": result,
-            })
+            if tc["name"] == "place_work_order":
+                try:
+                    parsed = json.loads(result)
+                    if "placements" in parsed:
+                        placements.extend(parsed["placements"])
+                except (json.JSONDecodeError, TypeError):
+                    pass
+            conversation.append(
+                {
+                    "role": "tool",
+                    "tool_call_id": tc["id"],
+                    "content": result,
+                }
+            )

@@ -1,5 +1,5 @@
 /**
- * Collapsible LLM chat panel. Depends: endpoints.js (window.Endpoints.chat).
+ * Collapsible LLM chat panel. Depends: endpoints.js (window.Endpoints.chat), schedule-calendar.js.
  */
 (function () {
   "use strict";
@@ -101,6 +101,17 @@
           var payload = line.slice(6);
           if (payload === "[DONE]") continue;
           if (payload === "[REFRESH]") { needsRefresh = true; continue; }
+          if (payload.indexOf("[PLACE:") === 0) {
+            try {
+              var SP = window.SchedulePage;
+              var items = JSON.parse(payload.slice(7, -1));
+              for (var j = 0; j < items.length; j++) {
+                SP.applyPlacement(items[j].work_order_id, items[j].day_offset, items[j].resource_id);
+              }
+              SP.refreshCalendar();
+            } catch (_e) { /* ignore parse errors */ }
+            continue;
+          }
           full += payload;
           bubble.textContent = full;
           body.scrollTop = body.scrollHeight;

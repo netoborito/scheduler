@@ -1,660 +1,590 @@
 <!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <title>Shift Management - Industrial Maintenance Scheduler</title>
-    <style>
-      body {
-        font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
-          sans-serif;
-        margin: 0;
-        padding: 0;
-        background: #0f172a;
-        color: #e5e7eb;
-      }
 
-      .page {
-        max-width: 1200px;
-        margin: 0 auto;
-        padding: 24px;
-      }
+<head>
+  <meta charset="UTF-8" />
+  <title>Shift Management - Befesa Maintenance Scheduler</title>
+  <link rel="stylesheet" href="{{ request.url_for('static', path='css/schedule.css') }}" />
+  <style>
+    .shifts-page {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 16px;
+    }
 
-      h1 {
-        margin-bottom: 8px;
-      }
+    .shifts-form-card {
+      background: var(--bg-surface-light);
+      border: 1px solid var(--border-light);
+      border-radius: var(--radius-md);
+      padding: 16px 20px;
+      margin-bottom: 16px;
+    }
 
-      .card {
-        background: #020617;
-        border-radius: 12px;
-        padding: 16px 20px;
-        box-shadow: 0 20px 40px rgba(0, 0, 0, 0.6);
-        margin-bottom: 20px;
-        border: 1px solid #1e293b;
-      }
+    .shifts-form-card h2 {
+      margin: 0 0 4px 0;
+      font-size: 1rem;
+    }
 
-      .form-group {
-        margin-bottom: 16px;
-      }
+    .shifts-form-card p {
+      font-size: 0.85rem;
+      color: var(--text-secondary);
+      margin: 0 0 12px 0;
+    }
 
-      label {
-        display: block;
-        font-size: 0.9rem;
-        color: #cbd5f5;
-        margin-bottom: 6px;
-      }
+    .form-group {
+      margin-bottom: 12px;
+    }
 
-      input[type="text"],
-      input[type="number"] {
-        background: #020617;
-        border-radius: 6px;
-        border: 1px solid #1f2937;
-        padding: 8px 12px;
-        color: #e5e7eb;
-        font-size: 0.9rem;
-        width: 100%;
-        max-width: 300px;
-      }
+    .form-group label {
+      display: block;
+      font-size: 0.82rem;
+      color: var(--text-label);
+      margin-bottom: 4px;
+    }
 
-      input[type="checkbox"] {
-        width: 18px;
-        height: 18px;
-        margin-right: 8px;
-        cursor: pointer;
-      }
+    .form-group input[type="text"],
+    .form-group input[type="number"] {
+      background: var(--bg-surface);
+      border-radius: var(--radius-md);
+      border: 1px solid var(--border-input);
+      padding: 6px 10px;
+      color: var(--text-primary);
+      font-size: 0.85rem;
+      width: 100%;
+      max-width: 280px;
+    }
 
-      .checkbox-group {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 16px;
-        margin-top: 8px;
-      }
+    .form-group input[type="checkbox"] {
+      width: 16px;
+      height: 16px;
+      margin-right: 6px;
+      cursor: pointer;
+    }
 
-      .checkbox-item {
-        display: flex;
-        align-items: center;
-      }
+    .checkbox-group {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 14px;
+      margin-top: 4px;
+    }
 
-      button {
-        border-radius: 6px;
-        border: none;
-        padding: 8px 16px;
-        font-size: 0.9rem;
-        cursor: pointer;
-        font-weight: 600;
-        margin-right: 8px;
-        margin-top: 8px;
-      }
+    .checkbox-item {
+      display: flex;
+      align-items: center;
+    }
 
-      button.primary {
-        background: linear-gradient(135deg, #22c55e, #16a34a);
-        color: white;
-      }
+    .checkbox-item label {
+      display: inline;
+      margin-bottom: 0;
+      font-size: 0.82rem;
+    }
 
-      button.secondary {
-        background: transparent;
-        border: 1px solid #4b5563;
-        color: #e5e7eb;
-      }
+    .shifts-form-card button {
+      border-radius: 4px;
+      border: none;
+      padding: 6px 14px;
+      font-size: 0.82rem;
+      cursor: pointer;
+      font-weight: 600;
+      margin-right: 6px;
+      margin-top: 6px;
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+    }
 
-      button.danger {
-        background: linear-gradient(135deg, #ef4444, #dc2626);
-        color: white;
-      }
+    .shifts-form-card button.primary {
+      background: linear-gradient(135deg, #22c55e, #16a34a);
+      color: #ffffff;
+    }
 
-      button:hover {
-        opacity: 0.9;
-      }
+    .shifts-form-card button.secondary {
+      background: transparent;
+      border: 1px solid var(--border-light);
+      color: var(--text-primary);
+    }
 
-      .status {
-        font-size: 0.85rem;
-        color: #9ca3af;
-        margin-top: 8px;
-        padding: 8px;
-        border-radius: 6px;
-        background: #1e293b;
-      }
+    .shifts-form-card button.danger {
+      background: linear-gradient(135deg, #ef4444, #dc2626);
+      color: #ffffff;
+    }
 
-      .status.success {
-        color: #22c55e;
-        background: #064e3b;
-      }
+    .shifts-form-card button:hover {
+      opacity: 0.9;
+    }
 
-      .status.error {
-        color: #ef4444;
-        background: #7f1d1d;
-      }
+    .status {
+      font-size: 0.82rem;
+      color: var(--text-secondary);
+      margin-top: 8px;
+      padding: 6px 10px;
+      border-radius: var(--radius-md);
+      background: var(--bg-surface);
+      display: none;
+    }
 
-      .shifts-list {
-        margin-top: 20px;
-      }
+    .status.success {
+      color: #22c55e;
+      background: #064e3b;
+    }
 
-      .shift-item {
-        background: #1e293b;
-        border-radius: 8px;
-        padding: 16px;
-        margin-bottom: 12px;
-        border: 1px solid #334155;
-      }
+    .status.error {
+      color: #ef4444;
+      background: #7f1d1d;
+    }
 
-      .shift-header {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        margin-bottom: 12px;
-      }
+    .shifts-list {
+      margin-top: 8px;
+    }
 
-      .shift-title {
-        font-weight: 600;
-        font-size: 1.1rem;
-        color: #e5e7eb;
-      }
+    .shift-item {
+      background: var(--bg-surface);
+      border-radius: var(--radius-md);
+      padding: 12px 14px;
+      margin-bottom: 8px;
+      border: 1px solid var(--border-muted);
+    }
 
-      .shift-details {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-        gap: 12px;
-        font-size: 0.9rem;
-        color: #cbd5f5;
-      }
+    .shift-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 8px;
+    }
 
-      .shift-detail {
-        display: flex;
-        gap: 8px;
-      }
+    .shift-title {
+      font-weight: 600;
+      font-size: 0.95rem;
+      color: var(--text-primary);
+    }
 
-      .shift-detail-label {
-        font-weight: 600;
-      }
+    .shift-header button {
+      border-radius: 4px;
+      padding: 4px 10px;
+      font-size: 0.78rem;
+      font-weight: 600;
+      cursor: pointer;
+      border: none;
+      margin-left: 4px;
+    }
 
-      .days-list {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 8px;
-      }
+    .shift-details {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 8px;
+      font-size: 0.82rem;
+      color: var(--text-label);
+    }
 
-      .day-badge {
-        background: #334155;
-        padding: 4px 8px;
-        border-radius: 4px;
-        font-size: 0.8rem;
-      }
+    .shift-detail {
+      display: flex;
+      gap: 6px;
+    }
 
-      .nav-link {
-        color: #60a5fa;
-        text-decoration: none;
-        margin-bottom: 16px;
-        display: inline-block;
-      }
+    .shift-detail-label {
+      font-weight: 600;
+    }
 
-      .nav-link:hover {
-        text-decoration: underline;
-      }
+    .days-list {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px;
+    }
 
-      .color-palette {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 8px;
-        margin-top: 8px;
-      }
+    .day-badge {
+      background: var(--border-muted);
+      padding: 2px 6px;
+      border-radius: 3px;
+      font-size: 0.75rem;
+    }
 
-      .color-swatch {
-        width: 24px;
-        height: 24px;
-        border-radius: 6px;
-        border: 2px solid transparent;
-        cursor: pointer;
-      }
+    .color-palette {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-top: 4px;
+    }
 
-      .color-swatch.selected {
-        border-color: #e5e7eb;
-        box-shadow: 0 0 0 1px #e5e7eb;
-      }
+    .color-swatch {
+      width: 22px;
+      height: 22px;
+      border-radius: 4px;
+      border: 2px solid transparent;
+      cursor: pointer;
+    }
 
-      .color-swatch.auto {
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-size: 0.6rem;
-        color: #e5e7eb;
-        background: #1f2937;
-      }
-    </style>
-  </head>
-  <body>
-    <div class="page">
-      <a href="/" class="nav-link">← Back to Scheduler</a>
+    .color-swatch.selected {
+      border-color: var(--text-primary);
+      box-shadow: 0 0 0 1px var(--text-primary);
+    }
 
-      <div class="card">
-        <h1>Shift Management</h1>
-        <p style="font-size: 0.95rem; color: #9ca3af; margin-top: 0">
-          Create, update, and delete shift configurations for different trades.
-        </p>
+    .color-swatch.auto {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.6rem;
+      color: var(--text-primary);
+      background: var(--border-input);
+    }
+  </style>
+</head>
 
-        <form id="shift-form">
-          <div class="form-group">
-            <label for="trade">Trade Name *</label>
-            <input
-              type="text"
-              id="trade"
-              name="trade"
-              required
-              placeholder="e.g., NC-E/I"
-            />
-          </div>
-
-          <div class="form-group">
-            <label for="shift_duration_hours">Shift Duration (hours) *</label>
-            <input
-              type="number"
-              id="shift_duration_hours"
-              name="shift_duration_hours"
-              min="1"
-              max="24"
-              value="8"
-              required
-            />
-          </div>
-
-          <div class="form-group">
-            <label>Active Days *</label>
-            <div class="checkbox-group">
-              <div class="checkbox-item">
-                <input type="checkbox" id="monday" name="monday" />
-                <label for="monday">Monday</label>
-              </div>
-              <div class="checkbox-item">
-                <input type="checkbox" id="tuesday" name="tuesday" />
-                <label for="tuesday">Tuesday</label>
-              </div>
-              <div class="checkbox-item">
-                <input type="checkbox" id="wednesday" name="wednesday" />
-                <label for="wednesday">Wednesday</label>
-              </div>
-              <div class="checkbox-item">
-                <input type="checkbox" id="thursday" name="thursday" />
-                <label for="thursday">Thursday</label>
-              </div>
-              <div class="checkbox-item">
-                <input type="checkbox" id="friday" name="friday" />
-                <label for="friday">Friday</label>
-              </div>
-              <div class="checkbox-item">
-                <input type="checkbox" id="saturday" name="saturday" />
-                <label for="saturday">Saturday</label>
-              </div>
-              <div class="checkbox-item">
-                <input type="checkbox" id="sunday" name="sunday" />
-                <label for="sunday">Sunday</label>
-              </div>
-            </div>
-          </div>
-
-          <div class="form-group">
-            <label for="technicians_per_crew">Technicians per Crew *</label>
-            <input
-              type="number"
-              id="technicians_per_crew"
-              name="technicians_per_crew"
-              min="1"
-              value="1"
-              required
-            />
-          </div>
-
-          <div class="form-group">
-            <label for="color">Color (optional)</label>
-            <input type="hidden" id="color" name="color" />
-            <div class="color-palette" id="color-palette">
-              <div
-                class="color-swatch auto selected"
-                data-color=""
-                title="Auto"
-              >
-                A
-              </div>
-              <div
-                class="color-swatch"
-                data-color="#22c55e"
-                style="background:#22c55e"
-                title="Green"
-              ></div>
-              <div
-                class="color-swatch"
-                data-color="#3b82f6"
-                style="background:#3b82f6"
-                title="Blue"
-              ></div>
-              <div
-                class="color-swatch"
-                data-color="#a855f7"
-                style="background:#a855f7"
-                title="Purple"
-              ></div>
-              <div
-                class="color-swatch"
-                data-color="#ec4899"
-                style="background:#ec4899"
-                title="Pink"
-              ></div>
-              <div
-                class="color-swatch"
-                data-color="#f97316"
-                style="background:#f97316"
-                title="Orange"
-              ></div>
-              <div
-                class="color-swatch"
-                data-color="#eab308"
-                style="background:#eab308"
-                title="Yellow"
-              ></div>
-              <div
-                class="color-swatch"
-                data-color="#06b6d4"
-                style="background:#06b6d4"
-                title="Cyan"
-              ></div>
-            </div>
-          </div>
-
-          <button type="submit" class="primary" id="submit-btn">Create Shift</button>
-          <button type="button" class="secondary" id="cancel-edit-btn" style="display: none">
-            Cancel Editt
-          </button>
-        </form>
-
-        <div id="status"></div>
+<body>
+  <div class="ribbon">
+    <div class="ribbon-row">
+      <div class="ribbon-left">
+        <img src="{{ request.url_for('static', path='img/befesa-logo.png') }}" alt="Befesa" class="ribbon-logo" />
+        <span class="ribbon-title">Maintenance Scheduler</span>
+        <span class="ribbon-sep"></span>
+        <span class="ribbon-hint">Shift Management</span>
       </div>
-
-      <div class="card">
-        <h2 style="margin-top: 0">Existing Shifts</h2>
-        <div id="shifts-list" class="shifts-list">
-          <p style="color: #9ca3af">Loading shifts...</p>
-        </div>
+      <div class="ribbon-center">
+        <a href="/" class="ribbon-link"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg> Back to Scheduler</a>
+      </div>
+      <div class="ribbon-right">
+        <div class="status" id="status"></div>
       </div>
     </div>
+  </div>
 
-    <script src="{{ request.url_for('static', path='js/api/endpoints.js') }}"></script>
-    <script>
-      let editingTrade = null;
-      const Endpoints = window.Endpoints || {};
+  <div class="shifts-page">
+    <div class="shifts-form-card">
+      <h2>Add / Edit Shift</h2>
+      <p>Configure shift duration, active days, and crew size for each trade.</p>
 
-      // Load shifts on page load
-      document.addEventListener("DOMContentLoaded", () => {
-        loadShifts();
-      });
+      <form id="shift-form">
+        <div style="display: flex; flex-wrap: wrap; gap: 16px;">
+          <div class="form-group" style="flex: 1; min-width: 200px;">
+            <label for="trade">Trade Name *</label>
+            <input type="text" id="trade" name="trade" required placeholder="e.g., NC-E/I" />
+          </div>
+          <div class="form-group" style="flex: 0 0 140px;">
+            <label for="shift_duration_hours">Duration (hours) *</label>
+            <input type="number" id="shift_duration_hours" name="shift_duration_hours" min="1" max="24" value="8" required style="max-width:120px" />
+          </div>
+          <div class="form-group" style="flex: 0 0 140px;">
+            <label for="technicians_per_crew">Crew Size *</label>
+            <input type="number" id="technicians_per_crew" name="technicians_per_crew" min="1" value="1" required style="max-width:120px" />
+          </div>
+        </div>
 
-      async function loadShifts() {
-        try {
-          const url = (Endpoints.shifts && Endpoints.shifts.list) || "/api/shifts";
-          const response = await fetch(url);
-          const data = await response.json();
-          displayShifts(data.shifts);
-        } catch (error) {
-          showStatus("Error loading shifts: " + error.message, "error");
-        }
+        <div class="form-group">
+          <label>Active Days *</label>
+          <div class="checkbox-group">
+            <div class="checkbox-item"><input type="checkbox" id="monday" name="monday" /><label for="monday">Mon</label></div>
+            <div class="checkbox-item"><input type="checkbox" id="tuesday" name="tuesday" /><label for="tuesday">Tue</label></div>
+            <div class="checkbox-item"><input type="checkbox" id="wednesday" name="wednesday" /><label for="wednesday">Wed</label></div>
+            <div class="checkbox-item"><input type="checkbox" id="thursday" name="thursday" /><label for="thursday">Thu</label></div>
+            <div class="checkbox-item"><input type="checkbox" id="friday" name="friday" /><label for="friday">Fri</label></div>
+            <div class="checkbox-item"><input type="checkbox" id="saturday" name="saturday" /><label for="saturday">Sat</label></div>
+            <div class="checkbox-item"><input type="checkbox" id="sunday" name="sunday" /><label for="sunday">Sun</label></div>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label for="color">Color (optional)</label>
+          <input type="hidden" id="color" name="color" />
+          <div class="color-palette" id="color-palette">
+            <div class="color-swatch auto selected" data-color="" title="Auto">A</div>
+            <div class="color-swatch" data-color="#22c55e" style="background:#22c55e" title="Green"></div>
+            <div class="color-swatch" data-color="#3b82f6" style="background:#3b82f6" title="Blue"></div>
+            <div class="color-swatch" data-color="#a855f7" style="background:#a855f7" title="Purple"></div>
+            <div class="color-swatch" data-color="#ec4899" style="background:#ec4899" title="Pink"></div>
+            <div class="color-swatch" data-color="#f97316" style="background:#f97316" title="Orange"></div>
+            <div class="color-swatch" data-color="#eab308" style="background:#eab308" title="Yellow"></div>
+            <div class="color-swatch" data-color="#06b6d4" style="background:#06b6d4" title="Cyan"></div>
+          </div>
+        </div>
+
+        <button type="submit" class="primary" id="submit-btn"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> Create Shift</button>
+        <button type="button" class="secondary" id="cancel-edit-btn" style="display: none">Cancel Edit</button>
+      </form>
+    </div>
+
+    <div class="shifts-form-card">
+      <h2>Existing Shifts</h2>
+      <div id="shifts-list" class="shifts-list">
+        <p style="color: var(--text-secondary)">Loading shifts...</p>
+      </div>
+    </div>
+  </div>
+
+  <script src="{{ request.url_for('static', path='js/api/endpoints.js') }}"></script>
+  <script>
+    let editingTrade = null;
+    const Endpoints = window.Endpoints || {};
+
+    document.addEventListener("DOMContentLoaded", () => {
+      loadShifts();
+    });
+
+    async function loadShifts() {
+      try {
+        const url = (Endpoints.shifts && Endpoints.shifts.list) || "/api/shifts";
+        const response = await fetch(url);
+        const data = await response.json();
+        displayShifts(data.shifts);
+      } catch (error) {
+        showStatus("Error loading shifts: " + error.message, "error");
+      }
+    }
+
+    function displayShifts(shifts) {
+      const listEl = document.getElementById("shifts-list");
+      if (shifts.length === 0) {
+        listEl.innerHTML = "<p style='color: var(--text-secondary)'>No shifts configured yet.</p>";
+        return;
       }
 
-      function displayShifts(shifts) {
-        const listEl = document.getElementById("shifts-list");
-        if (shifts.length === 0) {
-          listEl.innerHTML = "<p style='color: #9ca3af'>No shifts configured yet.</p>";
-          return;
-        }
+      listEl.innerHTML = shifts
+        .map((shift) => {
+          const days = [];
+          if (shift.monday) days.push("Mon");
+          if (shift.tuesday) days.push("Tue");
+          if (shift.wednesday) days.push("Wed");
+          if (shift.thursday) days.push("Thu");
+          if (shift.friday) days.push("Fri");
+          if (shift.saturday) days.push("Sat");
+          if (shift.sunday) days.push("Sun");
 
-        listEl.innerHTML = shifts
-          .map((shift) => {
-            const days = [];
-            if (shift.monday) days.push("Mon");
-            if (shift.tuesday) days.push("Tue");
-            if (shift.wednesday) days.push("Wed");
-            if (shift.thursday) days.push("Thu");
-            if (shift.friday) days.push("Fri");
-            if (shift.saturday) days.push("Sat");
-            if (shift.sunday) days.push("Sun");
-
-            return `
-              <div class="shift-item">
-                <div class="shift-header">
-                  <div class="shift-title">${shift.trade}</div>
-                  <div>
-                    <button class="secondary" onclick="editShift('${shift.trade}')">Edit</button>
-                    <button class="danger" onclick="deleteShift('${shift.trade}')">Delete</button>
-                  </div>
+          return `
+            <div class="shift-item">
+              <div class="shift-header">
+                <div class="shift-title">${shift.trade}</div>
+                <div>
+                  <button class="secondary" onclick="editShift('${shift.trade}')">Edit</button>
+                  <button class="danger" onclick="deleteShift('${shift.trade}')">Delete</button>
                 </div>
-                <div class="shift-details">
-                  <div class="shift-detail">
-                    <span class="shift-detail-label">Duration:</span>
-                    <span>${shift.shift_duration_hours} hours</span>
-                  </div>
-                  <div class="shift-detail">
-                    <span class="shift-detail-label">Crew Size:</span>
-                    <span>${shift.technicians_per_crew} technician${shift.technicians_per_crew !== 1 ? 's' : ''}</span>
-                  </div>
-                  <div class="shift-detail">
-                    <span class="shift-detail-label">Color:</span>
-                    <span>
-                      ${shift.color || "(auto)"}
-                      ${
-                        shift.color
-                          ? `<span style="display:inline-block;width:12px;height:12px;border-radius:3px;background:${shift.color};margin-left:6px;border:1px solid #1e293b;"></span>`
-                          : ""
-                      }
-                    </span>
-                  </div>
-                  <div class="shift-detail">
-                    <span class="shift-detail-label">Active Days:</span>
-                    <div class="days-list">
-                      ${days.map((day) => `<span class="day-badge">${day}</span>`).join("")}
-                    </div>
+              </div>
+              <div class="shift-details">
+                <div class="shift-detail">
+                  <span class="shift-detail-label">Duration:</span>
+                  <span>${shift.shift_duration_hours} hours</span>
+                </div>
+                <div class="shift-detail">
+                  <span class="shift-detail-label">Crew Size:</span>
+                  <span>${shift.technicians_per_crew} technician${shift.technicians_per_crew !== 1 ? 's' : ''}</span>
+                </div>
+                <div class="shift-detail">
+                  <span class="shift-detail-label">Color:</span>
+                  <span>
+                    ${shift.color || "(auto)"}
+                    ${
+                      shift.color
+                        ? '<span style="display:inline-block;width:12px;height:12px;border-radius:3px;background:' + shift.color + ';margin-left:6px;border:1px solid var(--border-muted);"></span>'
+                        : ""
+                    }
+                  </span>
+                </div>
+                <div class="shift-detail">
+                  <span class="shift-detail-label">Active Days:</span>
+                  <div class="days-list">
+                    ${days.map((day) => '<span class="day-badge">' + day + '</span>').join("")}
                   </div>
                 </div>
               </div>
-            `;
-          })
-          .join("");
-      }
+            </div>
+          `;
+        })
+        .join("");
+    }
 
-      async function editShift(trade) {
-        try {
-          const url =
-            (Endpoints.shifts && Endpoints.shifts.byTrade
-              ? Endpoints.shifts.byTrade(trade)
-              : `/api/shifts/${encodeURIComponent(trade)}`);
-          const response = await fetch(url);
-          const data = await response.json();
-          const shift = data.shift;
+    async function editShift(trade) {
+      try {
+        const url =
+          (Endpoints.shifts && Endpoints.shifts.byTrade
+            ? Endpoints.shifts.byTrade(trade)
+            : `/api/shifts/${encodeURIComponent(trade)}`);
+        const response = await fetch(url);
+        const data = await response.json();
+        const shift = data.shift;
 
-          // Populate form
-          document.getElementById("trade").value = shift.trade;
-          document.getElementById("trade").disabled = false;
-          document.getElementById("shift_duration_hours").value = shift.shift_duration_hours;
-          document.getElementById("technicians_per_crew").value = shift.technicians_per_crew;
-          document.getElementById("color").value = shift.color || "";
-          const palette = document.getElementById("color-palette");
-          if (palette) {
-            const swatches = palette.querySelectorAll(".color-swatch");
-            const currentColor = (shift.color || "").trim();
-            swatches.forEach((swatch) => {
-              const swatchColor = swatch.getAttribute("data-color") || "";
-              swatch.classList.toggle("selected", swatchColor === currentColor);
-            });
-          }
-          document.getElementById("monday").checked = shift.monday;
-          document.getElementById("tuesday").checked = shift.tuesday;
-          document.getElementById("wednesday").checked = shift.wednesday;
-          document.getElementById("thursday").checked = shift.thursday;
-          document.getElementById("friday").checked = shift.friday;
-          document.getElementById("saturday").checked = shift.saturday;
-          document.getElementById("sunday").checked = shift.sunday;
-
-          editingTrade = trade;
-          document.getElementById("submit-btn").textContent = "Update Shift";
-          document.getElementById("cancel-edit-btn").style.display = "inline-block";
-
-          // Scroll to form
-          document.getElementById("shift-form").scrollIntoView({ behavior: "smooth" });
-        } catch (error) {
-          showStatus("Error loading shift: " + error.message, "error");
-        }
-      }
-
-      function cancelEdit() {
-        editingTrade = null;
-        document.getElementById("shift-form").reset();
+        document.getElementById("trade").value = shift.trade;
         document.getElementById("trade").disabled = false;
-        document.getElementById("submit-btn").textContent = "Create Shift";
-        document.getElementById("cancel-edit-btn").style.display = "none";
-        showStatus("", "");
-      }
-
-      async function deleteShift(trade) {
-        if (!confirm(`Are you sure you want to delete the shift for trade "${trade}"?`)) {
-          return;
-        }
-
-        try {
-          const url =
-            (Endpoints.shifts && Endpoints.shifts.byTrade
-              ? Endpoints.shifts.byTrade(trade)
-              : `/api/shifts/${encodeURIComponent(trade)}`);
-          const response = await fetch(url, {
-            method: "DELETE",
-          });
-
-          if (!response.ok) {
-            const error = await response.json();
-            throw new Error(error.detail || "Failed to delete shift");
-          }
-
-          showStatus(`Shift "${trade}" deleted successfully`, "success");
-          loadShifts();
-          if (editingTrade === trade) {
-            cancelEdit();
-          }
-        } catch (error) {
-          showStatus("Error deleting shift: " + error.message, "error");
-        }
-      }
-
-      document.getElementById("shift-form").addEventListener("submit", async (e) => {
-        e.preventDefault();
-
-        const formData = new FormData(e.target);
-        const shiftData = {
-          trade: formData.get("trade"),
-          shift_duration_hours: parseInt(formData.get("shift_duration_hours")),
-          monday: formData.get("monday") === "on",
-          tuesday: formData.get("tuesday") === "on",
-          wednesday: formData.get("wednesday") === "on",
-          thursday: formData.get("thursday") === "on",
-          friday: formData.get("friday") === "on",
-          saturday: formData.get("saturday") === "on",
-          sunday: formData.get("sunday") === "on",
-          technicians_per_crew: parseInt(formData.get("technicians_per_crew")),
-          color: (formData.get("color") || "").trim(),
-        };
-
-        // Check at least one day is selected
-        const hasDay =
-          shiftData.monday ||
-          shiftData.tuesday ||
-          shiftData.wednesday ||
-          shiftData.thursday ||
-          shiftData.friday ||
-          shiftData.saturday ||
-          shiftData.sunday;
-
-        if (!hasDay) {
-          showStatus("Please select at least one active day", "error");
-          return;
-        }
-
-        try {
-          const formDataToSend = new FormData();
-          Object.keys(shiftData).forEach((key) => {
-            if (typeof shiftData[key] === "boolean") {
-              if (shiftData[key]) {
-                formDataToSend.append(key, "true");
-              }
-            } else {
-              formDataToSend.append(key, shiftData[key]);
-            }
-          });
-
-          let url =
-            (Endpoints.shifts && Endpoints.shifts.create) || "/api/shifts";
-          let method = "POST";
-
-          if (editingTrade) {
-            const tradeRenamed = shiftData.trade !== editingTrade;
-            if (tradeRenamed) {
-              // Delete old shift first, then create new one
-              const deleteUrl =
-                (Endpoints.shifts && Endpoints.shifts.byTrade
-                  ? Endpoints.shifts.byTrade(editingTrade)
-                  : `/api/shifts/${encodeURIComponent(editingTrade)}`);
-              const delResp = await fetch(deleteUrl, { method: "DELETE" });
-              if (!delResp.ok) {
-                const error = await delResp.json();
-                throw new Error(error.detail || "Failed to delete old shift");
-              }
-            } else {
-              url =
-                (Endpoints.shifts && Endpoints.shifts.update
-                  ? Endpoints.shifts.update(editingTrade)
-                  : `/api/shifts/${encodeURIComponent(editingTrade)}`);
-              method = "PUT";
-            }
-          }
-
-          const response = await fetch(url, {
-            method: method,
-            body: formDataToSend,
-          });
-
-          if (!response.ok) {
-            const error = await response.json();
-            throw new Error(error.detail || "Failed to save shift");
-          }
-
-          const result = await response.json();
-          showStatus(result.message || "Shift saved successfully", "success");
-          loadShifts();
-          cancelEdit();
-        } catch (error) {
-          showStatus("Error saving shift: " + error.message, "error");
-        }
-      });
-
-      document.getElementById("cancel-edit-btn").addEventListener("click", cancelEdit);
-
-      // Color palette click handling
-      (function initColorPalette() {
+        document.getElementById("shift_duration_hours").value = shift.shift_duration_hours;
+        document.getElementById("technicians_per_crew").value = shift.technicians_per_crew;
+        document.getElementById("color").value = shift.color || "";
         const palette = document.getElementById("color-palette");
-        const colorInput = document.getElementById("color");
-        if (!palette || !colorInput) return;
-        palette.addEventListener("click", (e) => {
-          const swatch = e.target.closest(".color-swatch");
-          if (!swatch) return;
-          const value = swatch.getAttribute("data-color") || "";
-          colorInput.value = value;
-          palette.querySelectorAll(".color-swatch").forEach((el) => {
-            el.classList.toggle("selected", el === swatch);
+        if (palette) {
+          const swatches = palette.querySelectorAll(".color-swatch");
+          const currentColor = (shift.color || "").trim();
+          swatches.forEach((swatch) => {
+            const swatchColor = swatch.getAttribute("data-color") || "";
+            swatch.classList.toggle("selected", swatchColor === currentColor);
           });
-        });
-      })();
-
-      function showStatus(message, type = "") {
-        const statusEl = document.getElementById("status");
-        statusEl.textContent = message;
-        statusEl.className = "status " + type;
-        if (!message) {
-          statusEl.style.display = "none";
-        } else {
-          statusEl.style.display = "block";
         }
+        document.getElementById("monday").checked = shift.monday;
+        document.getElementById("tuesday").checked = shift.tuesday;
+        document.getElementById("wednesday").checked = shift.wednesday;
+        document.getElementById("thursday").checked = shift.thursday;
+        document.getElementById("friday").checked = shift.friday;
+        document.getElementById("saturday").checked = shift.saturday;
+        document.getElementById("sunday").checked = shift.sunday;
+
+        editingTrade = trade;
+        document.getElementById("submit-btn").textContent = "Update Shift";
+        document.getElementById("cancel-edit-btn").style.display = "inline-flex";
+
+        document.getElementById("shift-form").scrollIntoView({ behavior: "smooth" });
+      } catch (error) {
+        showStatus("Error loading shift: " + error.message, "error");
       }
-    </script>
-  </body>
+    }
+
+    function cancelEdit() {
+      editingTrade = null;
+      document.getElementById("shift-form").reset();
+      document.getElementById("trade").disabled = false;
+      document.getElementById("submit-btn").textContent = "Create Shift";
+      document.getElementById("cancel-edit-btn").style.display = "none";
+      showStatus("", "");
+    }
+
+    async function deleteShift(trade) {
+      if (!confirm(`Are you sure you want to delete the shift for trade "${trade}"?`)) {
+        return;
+      }
+
+      try {
+        const url =
+          (Endpoints.shifts && Endpoints.shifts.byTrade
+            ? Endpoints.shifts.byTrade(trade)
+            : `/api/shifts/${encodeURIComponent(trade)}`);
+        const response = await fetch(url, {
+          method: "DELETE",
+        });
+
+        if (!response.ok) {
+          const error = await response.json();
+          throw new Error(error.detail || "Failed to delete shift");
+        }
+
+        showStatus(`Shift "${trade}" deleted successfully`, "success");
+        loadShifts();
+        if (editingTrade === trade) {
+          cancelEdit();
+        }
+      } catch (error) {
+        showStatus("Error deleting shift: " + error.message, "error");
+      }
+    }
+
+    document.getElementById("shift-form").addEventListener("submit", async (e) => {
+      e.preventDefault();
+
+      const formData = new FormData(e.target);
+      const shiftData = {
+        trade: formData.get("trade"),
+        shift_duration_hours: parseInt(formData.get("shift_duration_hours")),
+        monday: formData.get("monday") === "on",
+        tuesday: formData.get("tuesday") === "on",
+        wednesday: formData.get("wednesday") === "on",
+        thursday: formData.get("thursday") === "on",
+        friday: formData.get("friday") === "on",
+        saturday: formData.get("saturday") === "on",
+        sunday: formData.get("sunday") === "on",
+        technicians_per_crew: parseInt(formData.get("technicians_per_crew")),
+        color: (formData.get("color") || "").trim(),
+      };
+
+      const hasDay =
+        shiftData.monday ||
+        shiftData.tuesday ||
+        shiftData.wednesday ||
+        shiftData.thursday ||
+        shiftData.friday ||
+        shiftData.saturday ||
+        shiftData.sunday;
+
+      if (!hasDay) {
+        showStatus("Please select at least one active day", "error");
+        return;
+      }
+
+      try {
+        const formDataToSend = new FormData();
+        Object.keys(shiftData).forEach((key) => {
+          if (typeof shiftData[key] === "boolean") {
+            if (shiftData[key]) {
+              formDataToSend.append(key, "true");
+            }
+          } else {
+            formDataToSend.append(key, shiftData[key]);
+          }
+        });
+
+        let url =
+          (Endpoints.shifts && Endpoints.shifts.create) || "/api/shifts";
+        let method = "POST";
+
+        if (editingTrade) {
+          const tradeRenamed = shiftData.trade !== editingTrade;
+          if (tradeRenamed) {
+            const deleteUrl =
+              (Endpoints.shifts && Endpoints.shifts.byTrade
+                ? Endpoints.shifts.byTrade(editingTrade)
+                : `/api/shifts/${encodeURIComponent(editingTrade)}`);
+            const delResp = await fetch(deleteUrl, { method: "DELETE" });
+            if (!delResp.ok) {
+              const error = await delResp.json();
+              throw new Error(error.detail || "Failed to delete old shift");
+            }
+          } else {
+            url =
+              (Endpoints.shifts && Endpoints.shifts.update
+                ? Endpoints.shifts.update(editingTrade)
+                : `/api/shifts/${encodeURIComponent(editingTrade)}`);
+            method = "PUT";
+          }
+        }
+
+        const response = await fetch(url, {
+          method: method,
+          body: formDataToSend,
+        });
+
+        if (!response.ok) {
+          const error = await response.json();
+          throw new Error(error.detail || "Failed to save shift");
+        }
+
+        const result = await response.json();
+        showStatus(result.message || "Shift saved successfully", "success");
+        loadShifts();
+        cancelEdit();
+      } catch (error) {
+        showStatus("Error saving shift: " + error.message, "error");
+      }
+    });
+
+    document.getElementById("cancel-edit-btn").addEventListener("click", cancelEdit);
+
+    (function initColorPalette() {
+      const palette = document.getElementById("color-palette");
+      const colorInput = document.getElementById("color");
+      if (!palette || !colorInput) return;
+      palette.addEventListener("click", (e) => {
+        const swatch = e.target.closest(".color-swatch");
+        if (!swatch) return;
+        const value = swatch.getAttribute("data-color") || "";
+        colorInput.value = value;
+        palette.querySelectorAll(".color-swatch").forEach((el) => {
+          el.classList.toggle("selected", el === swatch);
+        });
+      });
+    })();
+
+    function showStatus(message, type = "") {
+      const statusEl = document.getElementById("status");
+      statusEl.textContent = message;
+      statusEl.className = "status " + type;
+      if (!message) {
+        statusEl.style.display = "none";
+      } else {
+        statusEl.style.display = "block";
+      }
+    }
+  </script>
+</body>
+
 </html>

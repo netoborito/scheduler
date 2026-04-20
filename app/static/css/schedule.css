@@ -2,44 +2,232 @@
   --font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   --bg-page: #0f172a;
   --bg-surface: #020617;
+  --bg-surface-light: #1e293b;
   --text-primary: #e5e7eb;
   --text-secondary: #9ca3af;
   --text-label: #cbd5f5;
   --text-calendar: #e2e8f0;
   --border-muted: #1e293b;
+  --border-light: #334155;
   --border-input: #1f2937;
   --radius-lg: 12px;
   --radius-md: 8px;
   --radius-pill: 999px;
+  --befesa-orange: #e8571a;
 }
 
 /* Base */
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
 body {
   font-family: var(--font-family);
   margin: 0;
   padding: 0;
   background: var(--bg-page);
   color: var(--text-primary);
+  overflow-x: hidden;
+  width: 100%;
 }
 
 h1 {
-  margin-bottom: 8px;
+  margin-bottom: 2px;
 }
 
 /* Layout */
 .page {
-  max-width: 1200px;
-  margin: 0 auto;
-  padding: 24px;
+  margin: 0;
+  padding: 0;
+  max-width: 100vw;
+  overflow-x: hidden;
 }
 
+/* ── Ribbon (top header bar) ── */
+.ribbon {
+  display: flex;
+  flex-direction: column;
+  background: #ffffff;
+  border-bottom: 2px solid var(--befesa-orange);
+}
+
+.ribbon-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 5px 16px;
+  min-height: 34px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.ribbon-row::-webkit-scrollbar {
+  display: none;
+}
+
+.ribbon-row-nav {
+  border-top: 1px solid #f1f5f9;
+  padding-top: 3px;
+  padding-bottom: 5px;
+  justify-content: space-between;
+}
+
+.ribbon-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+.ribbon-logo {
+  height: 22px;
+  width: auto;
+  object-fit: contain;
+}
+
+.ribbon-title {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #1e293b;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+}
+
+.ribbon-sep {
+  width: 1px;
+  height: 18px;
+  background: #cbd5e1;
+  flex-shrink: 0;
+}
+
+.ribbon-hint {
+  font-size: 0.78rem;
+  color: #64748b;
+  white-space: nowrap;
+}
+
+.ribbon-center {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1;
+  min-width: 0;
+}
+
+.ribbon-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.ribbon-actions button {
+  padding: 5px 12px;
+  font-size: 0.82rem;
+  border-radius: 4px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.ribbon-btn-sep {
+  width: 1px;
+  height: 20px;
+  background: #cbd5e1;
+  flex-shrink: 0;
+}
+
+.ribbon-filter {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.ribbon-filter label {
+  font-size: 0.8rem;
+  color: #64748b;
+}
+
+.ribbon-filter select {
+  background: #f1f5f9;
+  border: 1px solid #cbd5e1;
+  border-radius: var(--radius-md);
+  color: #1e293b;
+  padding: 3px 8px;
+  font-size: 0.82rem;
+}
+
+.ribbon-link {
+  color: #2563eb;
+  text-decoration: none;
+  font-size: 0.82rem;
+  font-weight: 500;
+  white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.ribbon-link:hover {
+  text-decoration: underline;
+}
+
+.ribbon-nav {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.ribbon-nav-btn {
+  background: #f1f5f9 !important;
+  color: #334155 !important;
+  border: 1px solid #cbd5e1 !important;
+  border-radius: 4px !important;
+  padding: 4px 8px !important;
+  font-size: 0.8rem !important;
+  font-weight: 500 !important;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 28px;
+}
+
+.ribbon-nav-btn:hover {
+  background: #e2e8f0 !important;
+}
+
+.ribbon-date-range {
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: #1e293b;
+  white-space: nowrap;
+  margin-left: 4px;
+}
+
+.ribbon-right {
+  flex-shrink: 0;
+  margin-left: auto;
+}
+
+.ribbon-right .status {
+  margin-top: 0;
+  font-size: 0.8rem;
+  color: #64748b;
+}
+
+/* ── Cards ── */
 .card {
   background: var(--bg-surface);
-  border-radius: var(--radius-lg);
-  padding: 16px 20px;
-  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.6);
-  margin-bottom: 20px;
-  border: 1px solid var(--border-muted);
+  border-radius: 0;
+  padding: 8px 10px;
+  margin-bottom: 0;
+  border: none;
+  border-bottom: 1px solid var(--border-muted);
+}
+
+.card--light {
+  background: var(--bg-surface-light);
+  border-bottom-color: var(--border-light);
 }
 
 .two-column {
@@ -52,8 +240,8 @@ h1 {
 .stacked-panels {
   display: flex;
   flex-direction: column;
-  gap: 16px;
-  margin-top: 12px;
+  gap: 0;
+  margin-top: 0;
   width: 100%;
 }
 
@@ -96,6 +284,12 @@ button.secondary {
   border: 1px solid #4b5563;
 }
 
+.ribbon button.secondary {
+  border-color: #cbd5e1;
+  color: #334155;
+  border-radius: 4px;
+}
+
 .status {
   font-size: 0.85rem;
   color: var(--text-secondary);
@@ -104,18 +298,28 @@ button.secondary {
 
 /* Panels and tables */
 .panel {
-  border-radius: var(--radius-md);
+  border-radius: 0;
   border: 1px solid var(--border-muted);
-  padding: 10px;
+  padding: 4px;
   background: var(--bg-surface);
   max-height: 420px;
   overflow-y: auto;
   font-size: 0.85rem;
 }
 
+.card--light .panel {
+  background: #172033;
+  border-color: var(--border-light);
+}
+
+.card--light .panel-table th,
+.card--light .panel-table td {
+  border-bottom-color: #2d3b50;
+}
+
 .panel h3 {
   margin-top: 0;
-  margin-bottom: 6px;
+  margin-bottom: 2px;
   font-size: 0.9rem;
 }
 
@@ -216,18 +420,40 @@ button.secondary {
   width: 12%;
 }
 
+/* Calendar card — intentionally dark */
+.card-schedule {
+  background: var(--bg-surface);
+  border-bottom: 1px solid #0c1222;
+  overflow: hidden;
+  padding: 0;
+}
+
 /* Calendar wrapper */
 #calendar {
-  margin-top: 10px;
+  margin-top: 0;
   background: var(--bg-surface);
-  border-radius: var(--radius-lg);
-  padding: 10px;
+  border-radius: 0;
+  padding: 0;
+  overflow: hidden;
+}
+
+#calendar .fc-scroller {
+  overflow: hidden !important;
+}
+
+#calendar .fc-scrollgrid-liquid {
+  border-right-width: 0 !important;
 }
 
 /* Keep work order text neatly inside calendar events */
 #calendar .fc-daygrid-event-harness,
 #calendar .fc-daygrid-event {
   overflow: hidden;
+}
+
+#calendar .fc-daygrid-day-events {
+  overflow: hidden;
+  min-height: 0;
 }
 
 #calendar .wo-event {
@@ -311,11 +537,18 @@ button.secondary {
 
 #calendar .fc-scrollgrid {
   border-color: var(--border-muted) !important;
+  border-right: none !important;
 }
 
 #calendar .fc-daygrid-day {
   border-color: var(--border-muted) !important;
   position: relative;
+  overflow: hidden;
+}
+
+#calendar .fc-daygrid-day:last-child,
+#calendar .fc-col-header-cell:last-child {
+  border-right: none !important;
 }
 
 #calendar .fc-day-today .fc-col-header-cell-cushion,
@@ -323,9 +556,9 @@ button.secondary {
   color: #f97316 !important;
 }
 
-/* Hide any remaining top-right toolbar chunk (e.g., stray Week button) */
-#calendar .fc-toolbar-chunk:last-child {
-  display: none;
+/* Hide the built-in FullCalendar toolbar — navigation is in the ribbon */
+#calendar .fc-header-toolbar {
+  display: none !important;
 }
 
 /* Add extra space at bottom of each day so man-hours badge sits below events */
@@ -409,6 +642,87 @@ button.secondary {
   color: var(--text-primary);
   padding: 4px 8px;
   font-size: 0.85rem;
+}
+
+/* ── Finalize Button ── */
+
+.finalize-btn {
+  background: linear-gradient(135deg, #f59e0b, #d97706) !important;
+  color: #fff !important;
+  font-weight: 600;
+}
+
+.finalize-btn:hover:not(:disabled) {
+  background: linear-gradient(135deg, #d97706, #b45309) !important;
+}
+
+.finalize-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  filter: grayscale(0.4);
+}
+
+/* ── Finalize Confirmation Modal ── */
+
+.finalize-card {
+  width: 440px;
+}
+
+.finalize-title {
+  font-size: 1.05rem;
+  color: #f59e0b;
+}
+
+.finalize-warning {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  background: rgba(245, 158, 11, 0.1);
+  border: 1px solid rgba(245, 158, 11, 0.35);
+  border-radius: var(--radius-md);
+  padding: 12px 14px;
+  margin: 12px 0;
+}
+
+.finalize-warning-icon {
+  font-size: 1.4rem;
+  color: #f59e0b;
+  flex-shrink: 0;
+  line-height: 1;
+}
+
+.finalize-warning p {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--text-primary);
+  line-height: 1.45;
+}
+
+.finalize-summary {
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  margin: 8px 0 16px;
+}
+
+.finalize-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.finalize-confirm-btn {
+  background: linear-gradient(135deg, #f59e0b, #d97706) !important;
+  color: #fff !important;
+  font-weight: 600;
+}
+
+.finalize-confirm-btn:hover {
+  background: linear-gradient(135deg, #d97706, #b45309) !important;
+}
+
+.finalize-confirm-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 /* ── Chat Drawer ── */

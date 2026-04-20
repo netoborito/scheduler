@@ -75,25 +75,11 @@
     const newTrade = document.getElementById("wo-edit-trade").value;
     if (!newDateStr) return;
 
-    // Compute day_offset = days between schedule start and the chosen date
     const scheduleStart = new Date(state.latestSchedule.start_date + "T00:00:00");
     const newDate = new Date(newDateStr + "T00:00:00");
     const dayOffset = Math.round((newDate - scheduleStart) / (24 * 60 * 60 * 1000));
 
-    // Write override -- identical to what eventDrop does
-    state.manualScheduleOverrides[woId] = {
-      day_offset: dayOffset,
-      resource_id: newTrade,
-    };
-
-    // Refresh everything (same chain as eventDrop)
-    rebuildAllCalendarEvents();
-    applyCalendarResourceFilter();
-    SchedulePage.updateTradeViews();
-    if (SchedulePage.persistScheduleState) {
-      SchedulePage.persistScheduleState();
-    }
-
+    placeWorkOrder(woId, dayOffset, newTrade);
     closeEditModal();
   }
 
@@ -115,6 +101,46 @@
   });
 
   // ── End Edit Modal helpers ──────────────────────────────────────────
+
+  // ── Shared placement helpers ──────────────────────────────────────
+
+  /** Apply a placement override (state only, no DOM rebuild). */
+  function applyPlacement(woId, dayOffset, resourceId) {
+    var key = String(woId);
+    state.manualScheduleOverrides[key] = {
+      day_offset: dayOffset,
+      resource_id: resourceId,
+    };
+    state.manualScheduledIds.add(key);
+    state.manualUnscheduledIds.delete(key);
+  }
+
+  /** Rebuild calendar, tables, and persist after state mutations. */
+  function refreshCalendar() {
+    rebuildAllCalendarEvents();
+    applyCalendarResourceFilter();
+    SchedulePage.updateTradeViews();
+    if (SchedulePage.persistScheduleState) {
+      SchedulePage.persistScheduleState();
+    }
+  }
+
+  /** Place a single WO on the calendar and refresh. */
+  function placeWorkOrder(woId, dayOffset, resourceId) {
+    applyPlacement(woId, dayOffset, resourceId);
+    refreshCalendar();
+  }
+
+  /** Remove a WO from the calendar and refresh. */
+  function unscheduleWorkOrder(woId) {
+    var key = String(woId);
+    state.manualScheduledIds.delete(key);
+    state.manualUnscheduledIds.add(key);
+    delete state.manualScheduleOverrides[key];
+    refreshCalendar();
+  }
+
+  // ── End Shared placement helpers ──────────────────────────────────
 
   function updateAllManHoursBadges() {
     if (!state.calendar) return;
@@ -302,16 +328,7 @@
         if (x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom) {
           const woId = info.event.extendedProps?.workOrderId;
           if (!woId) return;
-          const key = String(woId);
-          state.manualScheduledIds.delete(key);
-          state.manualUnscheduledIds.add(key);
-          delete state.manualScheduleOverrides[key];
-          rebuildAllCalendarEvents();
-          applyCalendarResourceFilter();
-          SchedulePage.updateTradeViews();
-          if (SchedulePage.persistScheduleState) {
-            SchedulePage.persistScheduleState();
-          }
+          unscheduleWorkOrder(woId);
         }
       },
       eventDrop: function (info) {
@@ -321,16 +338,7 @@
         if (!start) return;
         const scheduleStart = new Date(state.latestSchedule.start_date + "T00:00:00");
         const dayOffset = Math.round((start - scheduleStart) / (24 * 60 * 60 * 1000));
-        state.manualScheduleOverrides[woId] = {
-          day_offset: dayOffset,
-          resource_id: info.event.extendedProps?.resourceId || "",
-        };
-        rebuildAllCalendarEvents();
-        applyCalendarResourceFilter();
-        SchedulePage.updateTradeViews();
-        if (SchedulePage.persistScheduleState) {
-          SchedulePage.persistScheduleState();
-        }
+        placeWorkOrder(woId, dayOffset, info.event.extendedProps?.resourceId || "");
       },
       // Double-click to open the edit modal.
       // Two clicks on the same WO within 350ms = double-click.
@@ -354,6 +362,31 @@
     calendar.render();
     state.calendar = calendar;
 
+    function syncRibbonTitle() {
+      var titleEl = document.getElementById("cal-title");
+      if (!titleEl) return;
+      var title = calendar.view.title;
+      if (!title) {
+        var start = calendar.view.activeStart;
+        var end = calendar.view.activeEnd;
+        if (start && end) {
+          var endDisplay = new Date(end);
+          endDisplay.setDate(endDisplay.getDate() - 1);
+          title = start.toLocaleDateString(undefined, { month: "short", day: "numeric" })
+            + " – " + endDisplay.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
+        }
+      }
+      titleEl.textContent = title || "";
+    }
+    syncRibbonTitle();
+    calendar.on("datesSet", syncRibbonTitle);
+    var prevBtn = document.getElementById("cal-prev");
+    var nextBtn = document.getElementById("cal-next");
+    var todayBtn = document.getElementById("cal-today");
+    if (prevBtn) prevBtn.addEventListener("click", function () { calendar.prev(); });
+    if (nextBtn) nextBtn.addEventListener("click", function () { calendar.next(); });
+    if (todayBtn) todayBtn.addEventListener("click", function () { calendar.today(); });
+
     calendarEl.addEventListener("dragover", (e) => {
       e.preventDefault();
       e.dataTransfer.dropEffect = "move";
@@ -374,18 +407,14 @@
       const dayOffset = Math.round((dropDate - scheduleStart) / (24 * 60 * 60 * 1000));
       const wo = state.latestWorkOrders.find((w) => String(w.id) === String(woId));
       const resourceId = wo ? String(wo.trade || "") : "";
-      state.manualScheduleOverrides[woId] = { day_offset: dayOffset, resource_id: resourceId };
-      state.manualScheduledIds.add(woId);
-      state.manualUnscheduledIds.delete(woId);
-      rebuildAllCalendarEvents();
-      applyCalendarResourceFilter();
-      SchedulePage.updateTradeViews();
-      if (SchedulePage.persistScheduleState) {
-        SchedulePage.persistScheduleState();
-      }
+      placeWorkOrder(woId, dayOffset, resourceId);
     });
   }
 
+  SchedulePage.applyPlacement = applyPlacement;
+  SchedulePage.refreshCalendar = refreshCalendar;
+  SchedulePage.placeWorkOrder = placeWorkOrder;
+  SchedulePage.unscheduleWorkOrder = unscheduleWorkOrder;
   SchedulePage.updateAllManHoursBadges = updateAllManHoursBadges;
   SchedulePage.rebuildAllCalendarEvents = rebuildAllCalendarEvents;
   SchedulePage.applyCalendarResourceFilter = applyCalendarResourceFilter;

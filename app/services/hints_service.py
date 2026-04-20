@@ -27,9 +27,12 @@ def load_hints(path: Optional[Path] = None) -> Dict[str, Tuple[str, str, bool]]:
         return {}
     with open(path, encoding="utf-8") as f:
         saved = json.load(f)
+    if "hints" in saved and isinstance(saved["hints"], dict):
+        saved = saved["hints"]
     return {
         wo_id: (entry["day"], entry["trade"], entry["scheduled"])
         for wo_id, entry in saved.items()
+        if isinstance(entry, dict)
     }
 
 

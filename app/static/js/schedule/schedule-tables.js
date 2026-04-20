@@ -41,7 +41,7 @@
     if (scheduledBody) scheduledBody.innerHTML = "";
     unscheduledBody.innerHTML = "";
 
-    if (!state.latestSchedule || !state.latestWorkOrders.length) return;
+    if (!state.latestWorkOrders.length) return;
 
     const selectEl = document.getElementById("resource-select");
     const selectedResource = selectEl ? selectEl.value : "";

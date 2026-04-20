@@ -9,8 +9,10 @@
   // Avoid overwriting if already defined (e.g., hot reload).
   window.Endpoints = window.Endpoints || {};
 
+  window.Endpoints.backlog = "/api/backlog";
   window.Endpoints.optimize = "/api/optimize";
   window.Endpoints.optimizeXlsx = "/api/optimize/xlsx";
+  window.Endpoints.finalizeSchedule = "/api/schedule/finalize";
   window.Endpoints.saveScheduleHints = "/api/schedule/hints";
   window.Endpoints.chat = "/api/agent/chat";
 

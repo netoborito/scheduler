@@ -10,6 +10,7 @@ from typing import List, Optional
 import json
 
 from .services.excel_io import fetch_backlog, build_schedule_workbook
+from .services.cloud_backlog_client import CloudBacklogClient, CloudBacklogError
 from .services.gains_service import load_gains
 from .services.hints_service import load_hints
 from .services.optimizer import optimize_schedule
@@ -61,6 +62,56 @@ async def index(request: Request) -> HTMLResponse:
             "default_start_date_display": default_start.strftime("%m/%d/%Y"),
         },
     )
+
+
+@app.get("/api/backlog")
+async def api_backlog() -> dict:
+    """Return fresh backlog work orders and shift metadata (no optimizer run)."""
+    start_date = get_next_monday()
+    work_orders = fetch_backlog(start_date=start_date)
+
+    shifts = get_all_shifts()
+    shift_colors = {
+        s.trade: getattr(s, "color", "") for s in shifts if getattr(s, "color", "")
+    }
+    shift_availability = [
+        {
+            "trade": s.trade,
+            "shift_duration_hours": s.shift_duration_hours,
+            "technicians_per_crew": getattr(s, "technicians_per_crew", 1),
+            "monday": s.monday,
+            "tuesday": s.tuesday,
+            "wednesday": s.wednesday,
+            "thursday": s.thursday,
+            "friday": s.friday,
+            "saturday": s.saturday,
+            "sunday": s.sunday,
+        }
+        for s in shifts
+    ]
+
+    return {
+        "work_orders": [
+            {
+                "id": wo.id,
+                "description": wo.description,
+                "duration_hours": wo.duration_hours,
+                "equipment": wo.equipment,
+                "priority": wo.priority,
+                "schedule_date": wo.schedule_date.isoformat()
+                if getattr(wo, "schedule_date", None)
+                else None,
+                "trade": wo.trade,
+                "type": wo.type,
+                "safety": wo.safety,
+                "age_days": wo.age_days,
+                "num_people": getattr(wo, "num_people", 1),
+            }
+            for wo in work_orders
+        ],
+        "shift_colors": shift_colors,
+        "shift_availability": shift_availability,
+    }
 
 
 @app.post("/api/optimize")
@@ -338,6 +389,90 @@ async def api_delete_shift(trade: str) -> dict:
         return {"message": f"Shift '{trade}' deleted successfully"}
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
+
+
+FINALIZE_ENABLED = False  # flip to True once EAM push has been tested
+
+@app.post("/api/schedule/finalize")
+async def api_finalize_schedule(payload: dict = Body(...)) -> dict:
+    """Push finalized schedule dates to the cloud EAM database."""
+    if not FINALIZE_ENABLED:
+        raise HTTPException(
+            status_code=403,
+            detail="Finalize is disabled — still under testing.",
+        )
+
+    schedule_payload = payload.get("latestSchedule")
+    work_orders_payload = payload.get("latestWorkOrders")
+    if not isinstance(schedule_payload, dict) or not isinstance(work_orders_payload, list):
+        raise HTTPException(
+            status_code=400,
+            detail="Expected JSON with latestSchedule and latestWorkOrders.",
+        )
+
+    start_date_raw = schedule_payload.get("start_date")
+    if not start_date_raw:
+        raise HTTPException(status_code=400, detail="latestSchedule.start_date is required.")
+
+    assignments = [
+        Assignment(
+            work_order_id=str(a.get("work_order_id", "")),
+            day_offset=int(a.get("day_offset", 0)),
+            resource_id=str(a.get("resource_id", "")),
+        )
+        for a in (schedule_payload.get("assignments") or [])
+    ]
+    schedule = Schedule(
+        assignments=assignments,
+        horizon_days=int(schedule_payload.get("horizon_days", 7)),
+        start_date=date.fromisoformat(start_date_raw),
+    )
+
+    wo_map: dict[str, WorkOrder] = {}
+    for item in work_orders_payload:
+        sd = item.get("schedule_date")
+        wo_map[str(item["id"])] = WorkOrder(
+            id=str(item.get("id", "")),
+            description=str(item.get("description", "")),
+            duration_hours=float(item.get("duration_hours", 0.5)),
+            priority=int(item.get("priority", 5)),
+            schedule_date=date.fromisoformat(sd) if sd else None,
+            trade=str(item.get("trade", "")),
+            type=str(item.get("type", "")),
+            safety=bool(item.get("safety", False)),
+            age_days=int(item.get("age_days", 0)),
+            fixed=bool(item.get("fixed", False)),
+            num_people=int(item.get("num_people", 1)),
+            equipment=str(item.get("equipment", "")),
+            dept=str(item.get("dept", "")),
+        )
+
+    client = CloudBacklogClient()
+    results: list[dict] = []
+    errors: list[dict] = []
+
+    for assignment in schedule.assignments:
+        wo = wo_map.get(assignment.work_order_id)
+        if not wo:
+            errors.append({"work_order_id": assignment.work_order_id, "error": "Work order not found in payload"})
+            continue
+        try:
+            resp = client.patch_eam_schedule_data(wo, schedule)
+            results.append({"work_order_id": assignment.work_order_id, "status": "ok", "response": resp})
+        except CloudBacklogError as e:
+            if e.response is not None and e.response.status_code == 404:
+                errors.append({"work_order_id": assignment.work_order_id, "error": "Work order not found in EAM"})
+            else:
+                errors.append({"work_order_id": assignment.work_order_id, "error": str(e)})
+        except Exception as e:
+            errors.append({"work_order_id": assignment.work_order_id, "error": str(e)})
+
+    return {
+        "status": "completed",
+        "updated": len(results),
+        "failed": len(errors),
+        "errors": errors,
+    }
 
 
 @app.get("/health")
