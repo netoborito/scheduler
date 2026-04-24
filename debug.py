@@ -76,14 +76,13 @@ def debug_patch_cloud_work_order():
         f"grid_id={settings.grid_id!r} "
         f"dataspy_id={settings.dataspy_id!r}"
     )
-    wo_id = 1452505
-
+    wo_id = 1439633
     start = get_next_monday()
     schedule = Schedule(
         assignments=[
             Assignment(
                 work_order_id=str(wo_id),
-                day_offset=4,
+                day_offset=44,
                 resource_id="debug",
             ),
         ],
